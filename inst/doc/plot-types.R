@@ -226,6 +226,34 @@ knitr::opts_chunk$set(
 # )
 # show()
 
+## ----violin-------------------------------------------------------------------
+# library(maidr)
+# library(ggplot2)
+# 
+# # ggplot2 - Vertical violin plot
+# p <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+#   geom_violin(fill = "lightblue", alpha = 0.7) +
+#   labs(
+#     title = "MPG Distribution by Cylinder Count",
+#     x = "Cylinders",
+#     y = "Miles per Gallon"
+#   ) +
+#   theme_minimal()
+# 
+# show(p)
+# 
+# # ggplot2 - Horizontal violin plot
+# p_horz <- ggplot(iris, aes(x = Sepal.Length, y = Species)) +
+#   geom_violin(fill = "lightgreen", alpha = 0.7) +
+#   labs(
+#     title = "Sepal Length Distribution by Species",
+#     x = "Sepal Length (cm)",
+#     y = "Species"
+#   ) +
+#   theme_minimal()
+# 
+# show(p_horz)
+
 ## ----heatmap------------------------------------------------------------------
 # library(maidr)
 # library(ggplot2)
