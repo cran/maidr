@@ -1,7 +1,7 @@
 Package: maidr
 Type: Package
 Title: Multimodal Access and Interactive Data Representation
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: c(
     person("JooYoung", "Seo", email = "jseo1005@illinois.edu", role = c("aut", "cph")),
     person("Niranjan", "Kalaiselvan", email = "nk46@illinois.edu", role = c("aut", "cre"))
@@ -20,17 +20,18 @@ Description: Provides accessible, interactive visualizations through the 'MAIDR'
     <https://maidr.ai/>.
 License: GPL (>= 3)
 Encoding: UTF-8
+Depends: R (>= 3.5.0)
 Imports: base64enc, curl, ggplot2, ggplotify, grid, gridSVG, htmltools,
         htmlwidgets, jsonlite, shiny, xml2, rlang, R6
 Suggests: testthat (>= 3.0.0), lintr, styler, goodpractice, cyclocomp,
-        knitr, rmarkdown, patchwork
+        knitr, rmarkdown, quarto, patchwork
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2026-03-07 03:24:08 UTC; niranjank
+Packaged: 2026-04-01 02:58:55 UTC; niranjank
 Author: JooYoung Seo [aut, cph],
   Niranjan Kalaiselvan [aut, cre]
 Maintainer: Niranjan Kalaiselvan <nk46@illinois.edu>
 Repository: CRAN
-Date/Publication: 2026-03-07 07:40:02 UTC
+Date/Publication: 2026-04-01 05:30:02 UTC
