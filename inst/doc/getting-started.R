@@ -6,8 +6,12 @@ knitr::opts_chunk$set(
 )
 
 ## ----install, eval=FALSE------------------------------------------------------
+# # Install the released version from CRAN
+# install.packages("maidr")
+# 
+# # Or the development version from GitHub:
 # # install.packages("devtools")
-# devtools::install_github("xability/r-maidr-prototype")
+# devtools::install_github("xability/r-maidr")
 
 ## ----ggplot2-example----------------------------------------------------------
 # library(maidr)
@@ -54,6 +58,29 @@ knitr::opts_chunk$set(
 # # Note: For Base R plots, call show() with NO arguments
 # # after creating the plot
 # show()
+
+## ----use-cdn-example----------------------------------------------------------
+# library(maidr)
+# library(ggplot2)
+# 
+# p <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+#   geom_bar(stat = "identity")
+# 
+# # Auto-detect (default) - uses CDN if internet available
+# show(p)
+# 
+# # Force CDN (requires internet when viewing)
+# show(p, use_cdn = TRUE)
+# 
+# # Force bundled/local files (works offline)
+# show(p, use_cdn = FALSE)
+
+## ----save-html-cdn------------------------------------------------------------
+# # Save with CDN links (smaller file, needs internet to view)
+# save_html(p, "plot_cdn.html", use_cdn = TRUE)
+# 
+# # Save with bundled files (larger file, works offline)
+# save_html(p, "plot_offline.html", use_cdn = FALSE)
 
 ## ----histogram-example--------------------------------------------------------
 # library(maidr)

@@ -1,7 +1,7 @@
 #' MAIDR JavaScript library version bundled with this package
 #'
 #' @keywords internal
-MAIDR_VERSION <- "3.59.0"
+MAIDR_VERSION <- "3.69.0"
 
 #' Get the MAIDR CDN base URL
 #'
@@ -13,18 +13,32 @@ maidr_cdn_url <- function() {
   "https://cdn.jsdelivr.net/npm/maidr@latest/dist"
 }
 
-#' Register JS/CSS dependencies for maidr with auto-detection
+#' Register JS/CSS dependencies for maidr
 #'
 #' Creates HTML dependencies for MAIDR JavaScript and CSS files.
-#' Automatically detects internet availability:
-#' - If internet is available: uses CDN (smaller HTML, better caching)
-#' - If offline: uses local bundled files (works without internet)
+#' Behavior is controlled by the `use_cdn` parameter:
+#' - If `TRUE`: Use CDN (requires internet)
+#' - If `FALSE` (default): Use local bundled files (works offline)
+#' - If `NULL`: Same as `FALSE` — use local bundled files
 #'
+#' We default to local bundled assets for deterministic rendering. Previously
+#' we auto-detected via `curl::has_internet()`; when internet was available
+#' the CDN path was selected, which combined with a (now-fixed) malformed
+#' nested-`<html>` HTML scaffold caused base R chart SVGs to render squished
+#' in the upper-left of the viewport. Local assets match the ggplot path that
+#' has always rendered correctly. Users who want CDN can still pass
+#' `use_cdn = TRUE` explicitly.
+#'
+#' @param use_cdn Logical. If `TRUE`, use CDN. If `FALSE` or `NULL` (default),
+#'   use bundled files.
 #' @return A list containing one htmlDependency object
 #' @keywords internal
-maidr_html_dependencies <- function() {
-  # Auto-detect: use CDN if internet available, otherwise local files
-  use_cdn <- curl::has_internet()
+maidr_html_dependencies <- function(use_cdn = NULL) {
+
+  # Default to local bundled assets for deterministic offline-capable rendering
+  if (is.null(use_cdn)) {
+    use_cdn <- FALSE
+  }
 
   if (use_cdn) {
     # CDN dependency - smaller HTML, relies on internet

@@ -58,10 +58,10 @@ test_that("BaseRLineLayerProcessor extract_data() works with multiline", {
   testthat::expect_equal(length(data), 2) # Two series
   testthat::expect_equal(length(data[[1]]), 3) # 3 points per series
 
-  # Check fill field
-  testthat::expect_true("fill" %in% names(data[[1]][[1]]))
-  testthat::expect_equal(data[[1]][[1]]$fill, "SeriesA")
-  testthat::expect_equal(data[[2]][[1]]$fill, "SeriesB")
+  # Check z field
+  testthat::expect_true("z" %in% names(data[[1]][[1]]))
+  testthat::expect_equal(data[[1]][[1]]$z, "SeriesA")
+  testthat::expect_equal(data[[2]][[1]]$z, "SeriesB")
 })
 
 test_that("BaseRLineLayerProcessor process() returns correct structure", {
@@ -88,8 +88,8 @@ test_that("BaseRLineLayerProcessor process() returns correct structure", {
   testthat::expect_type(result, "list")
   testthat::expect_equal(result$type, "line")
   testthat::expect_equal(result$title, "Test Line")
-  testthat::expect_equal(result$axes$x, "X Axis")
-  testthat::expect_equal(result$axes$y, "Y Axis")
+  testthat::expect_equal(result$axes$x$label, "X Axis")
+  testthat::expect_equal(result$axes$y$label, "Y Axis")
   testthat::expect_equal(length(result$data), 1)
 })
 
@@ -140,8 +140,8 @@ test_that("BaseRLineLayerProcessor handles matrix without column names", {
   data <- processor$extract_data(layer_info)
 
   # Should generate default names
-  testthat::expect_match(data[[1]][[1]]$fill, "Col")
-  testthat::expect_match(data[[2]][[1]]$fill, "Col")
+  testthat::expect_match(data[[1]][[1]]$z, "Col")
+  testthat::expect_match(data[[2]][[1]]$z, "Col")
 })
 
 test_that("BaseRLineLayerProcessor handles single point line", {
@@ -185,8 +185,8 @@ test_that("BaseRLineLayerProcessor extract_axis_titles() works", {
   processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
   axes <- processor$extract_axis_titles(layer_info)
 
-  testthat::expect_equal(axes$x, "Time")
-  testthat::expect_equal(axes$y, "Value")
+  testthat::expect_equal(axes$x$label, "Time")
+  testthat::expect_equal(axes$y$label, "Value")
 })
 
 test_that("BaseRLineLayerProcessor extract_axis_titles() handles defaults", {
@@ -199,8 +199,8 @@ test_that("BaseRLineLayerProcessor extract_axis_titles() handles defaults", {
   processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
   axes <- processor$extract_axis_titles(layer_info)
 
-  testthat::expect_equal(axes$x, "")
-  testthat::expect_equal(axes$y, "")
+  testthat::expect_equal(axes$x$label, "")
+  testthat::expect_equal(axes$y$label, "")
 })
 
 test_that("BaseRLineLayerProcessor extract_main_title() works", {
@@ -249,7 +249,7 @@ test_that("BaseRLineLayerProcessor extract_single_line_data() returns correct st
 
   testthat::expect_equal(length(result), 1) # Single series
   testthat::expect_equal(length(result[[1]]), 4) # 4 points
-  testthat::expect_false("fill" %in% names(result[[1]][[1]])) # No fill for single line
+  testthat::expect_false("z" %in% names(result[[1]][[1]])) # No z for single line
 })
 
 test_that("BaseRLineLayerProcessor extract_multiline_data() handles multiple columns", {
@@ -262,9 +262,9 @@ test_that("BaseRLineLayerProcessor extract_multiline_data() handles multiple col
   result <- processor$extract_multiline_data(x, y_matrix)
 
   testthat::expect_equal(length(result), 3) # Three series
-  testthat::expect_equal(result[[1]][[1]]$fill, "A")
-  testthat::expect_equal(result[[2]][[1]]$fill, "B")
-  testthat::expect_equal(result[[3]][[1]]$fill, "C")
+  testthat::expect_equal(result[[1]][[1]]$z, "A")
+  testthat::expect_equal(result[[2]][[1]]$z, "B")
+  testthat::expect_equal(result[[3]][[1]]$z, "C")
 })
 
 test_that("BaseRLineLayerProcessor extract_abline_data() with lm object", {
@@ -401,8 +401,8 @@ test_that("BaseRLineLayerProcessor extract_axis_titles() from high_call for low-
   processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
   axes <- processor$extract_axis_titles(layer_info)
 
-  testthat::expect_equal(axes$x, "X from High")
-  testthat::expect_equal(axes$y, "Y from High")
+  testthat::expect_equal(axes$x$label, "X from High")
+  testthat::expect_equal(axes$y$label, "Y from High")
 })
 
 test_that("BaseRLineLayerProcessor extract_main_title() from high_call for abline", {
@@ -483,8 +483,8 @@ test_that("BaseRLineLayerProcessor extracts all metadata correctly", {
 
   # Test axes
   axes <- processor$extract_axis_titles(layer_info)
-  testthat::expect_equal(axes$x, "X Values")
-  testthat::expect_equal(axes$y, "Y Values")
+  testthat::expect_equal(axes$x$label, "X Values")
+  testthat::expect_equal(axes$y$label, "Y Values")
 })
 
 # Selector tests with grob tree skipped - tested at orchestrator level
