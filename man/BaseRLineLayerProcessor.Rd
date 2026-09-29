@@ -6,224 +6,462 @@
 \description{
 Processes Base R line plot layers based on recorded plot calls
 }
-\keyword{Get}
-\keyword{LOW-level}
-\keyword{axis}
-\keyword{axis()}
-\keyword{calls}
-\keyword{custom}
-\keyword{from}
 \keyword{internal}
-\keyword{labels}
 \section{Super class}{
-\code{\link[maidr:LayerProcessor]{maidr::LayerProcessor}} -> \code{BaseRLineLayerProcessor}
+\code{\link[maidr:LayerProcessor]{LayerProcessor}} -> \code{BaseRLineLayerProcessor}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-BaseRLineLayerProcessor-process}{\code{BaseRLineLayerProcessor$process()}}
-\item \href{#method-BaseRLineLayerProcessor-needs_reordering}{\code{BaseRLineLayerProcessor$needs_reordering()}}
-\item \href{#method-BaseRLineLayerProcessor-extract_data}{\code{BaseRLineLayerProcessor$extract_data()}}
-\item \href{#method-BaseRLineLayerProcessor-get_axis_labels}{\code{BaseRLineLayerProcessor$get_axis_labels()}}
-\item \href{#method-BaseRLineLayerProcessor-extract_single_line_data}{\code{BaseRLineLayerProcessor$extract_single_line_data()}}
-\item \href{#method-BaseRLineLayerProcessor-extract_multiline_data}{\code{BaseRLineLayerProcessor$extract_multiline_data()}}
-\item \href{#method-BaseRLineLayerProcessor-extract_axis_titles}{\code{BaseRLineLayerProcessor$extract_axis_titles()}}
-\item \href{#method-BaseRLineLayerProcessor-extract_abline_data}{\code{BaseRLineLayerProcessor$extract_abline_data()}}
-\item \href{#method-BaseRLineLayerProcessor-get_x_range_from_group}{\code{BaseRLineLayerProcessor$get_x_range_from_group()}}
-\item \href{#method-BaseRLineLayerProcessor-get_y_range_from_group}{\code{BaseRLineLayerProcessor$get_y_range_from_group()}}
-\item \href{#method-BaseRLineLayerProcessor-extract_main_title}{\code{BaseRLineLayerProcessor$extract_main_title()}}
-\item \href{#method-BaseRLineLayerProcessor-generate_selectors}{\code{BaseRLineLayerProcessor$generate_selectors()}}
-\item \href{#method-BaseRLineLayerProcessor-find_lines_grobs}{\code{BaseRLineLayerProcessor$find_lines_grobs()}}
-\item \href{#method-BaseRLineLayerProcessor-generate_selectors_from_grob}{\code{BaseRLineLayerProcessor$generate_selectors_from_grob()}}
-\item \href{#method-BaseRLineLayerProcessor-clone}{\code{BaseRLineLayerProcessor$clone()}}
+  \itemize{
+    \item \href{#method-BaseRLineLayerProcessor-process}{\code{BaseRLineLayerProcessor$process()}}
+    \item \href{#method-BaseRLineLayerProcessor-needs_reordering}{\code{BaseRLineLayerProcessor$needs_reordering()}}
+    \item \href{#method-BaseRLineLayerProcessor-extract_data}{\code{BaseRLineLayerProcessor$extract_data()}}
+    \item \href{#method-BaseRLineLayerProcessor-get_axis_labels}{\code{BaseRLineLayerProcessor$get_axis_labels()}}
+    \item \href{#method-BaseRLineLayerProcessor-extract_single_line_data}{\code{BaseRLineLayerProcessor$extract_single_line_data()}}
+    \item \href{#method-BaseRLineLayerProcessor-extract_multiline_data}{\code{BaseRLineLayerProcessor$extract_multiline_data()}}
+    \item \href{#method-BaseRLineLayerProcessor-extract_axis_titles}{\code{BaseRLineLayerProcessor$extract_axis_titles()}}
+    \item \href{#method-BaseRLineLayerProcessor-extract_abline_data}{\code{BaseRLineLayerProcessor$extract_abline_data()}}
+    \item \href{#method-BaseRLineLayerProcessor-get_x_range_from_group}{\code{BaseRLineLayerProcessor$get_x_range_from_group()}}
+    \item \href{#method-BaseRLineLayerProcessor-get_y_range_from_group}{\code{BaseRLineLayerProcessor$get_y_range_from_group()}}
+    \item \href{#method-BaseRLineLayerProcessor-axis_extent}{\code{BaseRLineLayerProcessor$axis_extent()}}
+    \item \href{#method-BaseRLineLayerProcessor-extract_main_title}{\code{BaseRLineLayerProcessor$extract_main_title()}}
+    \item \href{#method-BaseRLineLayerProcessor-generate_selectors}{\code{BaseRLineLayerProcessor$generate_selectors()}}
+    \item \href{#method-BaseRLineLayerProcessor-find_lines_grobs}{\code{BaseRLineLayerProcessor$find_lines_grobs()}}
+    \item \href{#method-BaseRLineLayerProcessor-selector_grob_type}{\code{BaseRLineLayerProcessor$selector_grob_type()}}
+    \item \href{#method-BaseRLineLayerProcessor-generate_selectors_from_grob}{\code{BaseRLineLayerProcessor$generate_selectors_from_grob()}}
+    \item \href{#method-BaseRLineLayerProcessor-clone}{\code{BaseRLineLayerProcessor$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="apply_scale_mapping"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-apply_scale_mapping'><code>maidr::LayerProcessor$apply_scale_mapping()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>maidr::LayerProcessor$augment_plot()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>maidr::LayerProcessor$extract_layer_axes()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>maidr::LayerProcessor$get_last_result()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>maidr::LayerProcessor$get_layer_index()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>maidr::LayerProcessor$initialize()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>maidr::LayerProcessor$needs_augmentation()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>maidr::LayerProcessor$reorder_layer_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>maidr::LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>LayerProcessor$augment_plot()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>LayerProcessor$extract_layer_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_grob_tree"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_grob_tree'><code>LayerProcessor$find_layer_grob_tree()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_polyline_grob"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_polyline_grob'><code>LayerProcessor$find_layer_polyline_grob()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>LayerProcessor$get_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_built_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_built_data'><code>LayerProcessor$get_layer_built_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>LayerProcessor$get_layer_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_own_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_own_layer'><code>LayerProcessor$get_own_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>LayerProcessor$initialize()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_flipped_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_flipped_layer'><code>LayerProcessor$is_flipped_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_horizontal_call"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_horizontal_call'><code>LayerProcessor$is_horizontal_call()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="layer_polyline_grobs"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-layer_polyline_grobs'><code>LayerProcessor$layer_polyline_grobs()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>LayerProcessor$needs_augmentation()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="other_geom_grob_prefixes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-other_geom_grob_prefixes'><code>LayerProcessor$other_geom_grob_prefixes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>LayerProcessor$reorder_layer_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="resolve_panel_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-resolve_panel_index'><code>LayerProcessor$resolve_panel_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="swap_point_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-swap_point_axes'><code>LayerProcessor$swap_point_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_columns"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_columns'><code>LayerProcessor$unflip_columns()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_panel_params"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_panel_params'><code>LayerProcessor$unflip_panel_params()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$process(
+\subsection{\code{BaseRLineLayerProcessor$process()}}{
+  Process the layer: read its data, selectors, axis titles and main title from
+the recorded call
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$process(
   plot,
   layout,
   built = NULL,
   gt = NULL,
-  scale_mapping = NULL,
   grob_id = NULL,
   panel_id = NULL,
   panel_ctx = NULL,
   layer_info = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{Unused; present for the processor interface}
+      \item{\code{layout}}{Unused; present for the processor interface}
+      \item{\code{built}}{Unused; present for the processor interface}
+      \item{\code{gt}}{Gtable of the replayed drawing, searched for selectors (optional)}
+      \item{\code{grob_id}}{Unused; present for the processor interface}
+      \item{\code{panel_id}}{Unused; present for the processor interface}
+      \item{\code{panel_ctx}}{Unused; present for the processor interface}
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List describing the layer for the MAIDR payload
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-needs_reordering"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-needs_reordering}{}}}
-\subsection{Method \code{needs_reordering()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$needs_reordering()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$needs_reordering()}}{
+  Whether the plot data must be reordered before drawing; a Base R layer is read
+from the recorded call and never is
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$needs_reordering()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    FALSE
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$extract_data(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$extract_data()}}{
+  One series per line: a vector, each column of a matrix, a time series, or the
+endpoints of \code{abline()}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$extract_data(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of series
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-get_axis_labels"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-get_axis_labels}{}}}
-\subsection{Method \code{get_axis_labels()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$get_axis_labels(layer_info, axis_side = 1)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$get_axis_labels()}}{
+  Get custom axis labels from axis() LOW-level calls
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$get_axis_labels(layer_info, axis_side = 1)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information containing group data}
+      \item{\code{axis_side}}{Which axis (1=bottom/x, 2=left/y, 3=top, 4=right)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of labels or NULL if not found
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_info}}{Layer information containing group data}
-
-\item{\code{axis_side}}{Which axis (1=bottom/x, 2=left/y, 3=top, 4=right)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character vector of labels or NULL if not found
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-extract_single_line_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-extract_single_line_data}{}}}
-\subsection{Method \code{extract_single_line_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$extract_single_line_data(x, y, x_labels = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$extract_single_line_data()}}{
+  The points of one line, pairing each x with its y
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$extract_single_line_data(x, y, x_labels = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{x}}{x positions}
+      \item{\code{y}}{y values}
+      \item{\code{x_labels}}{Category labels to announce in place of the x positions (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List holding one series
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-extract_multiline_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-extract_multiline_data}{}}}
-\subsection{Method \code{extract_multiline_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$extract_multiline_data(x, y_matrix, x_labels = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$extract_multiline_data()}}{
+  One series per column of \code{y_matrix}, named after the columns
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$extract_multiline_data(x, y_matrix, x_labels = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{x}}{x positions}
+      \item{\code{y_matrix}}{One column of y values per series}
+      \item{\code{x_labels}}{Category labels to announce in place of the x positions (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of series
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-extract_axis_titles"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-extract_axis_titles}{}}}
-\subsection{Method \code{extract_axis_titles()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$extract_axis_titles(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$extract_axis_titles()}}{
+  The axis titles, taken from the HIGH-level call for an overlay such as
+\code{abline()}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$extract_axis_titles(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Canonical axes list
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-extract_abline_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-extract_abline_data}{}}}
-\subsection{Method \code{extract_abline_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$extract_abline_data(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$extract_abline_data()}}{
+  The endpoints of an \code{abline()} call across the axis the HIGH-level call set up
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$extract_abline_data(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List holding one two-point series, or empty
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-get_x_range_from_group"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-get_x_range_from_group}{}}}
-\subsection{Method \code{get_x_range_from_group()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$get_x_range_from_group(group)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$get_x_range_from_group()}}{
+  The x extent of the group's HIGH-level call, as the axis was drawn
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$get_x_range_from_group(group)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{group}}{The recorded plot group holding the HIGH-level call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Numeric vector of two, or NULL
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-get_y_range_from_group"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-get_y_range_from_group}{}}}
-\subsection{Method \code{get_y_range_from_group()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$get_y_range_from_group(group)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$get_y_range_from_group()}}{
+  The y extent of the group's HIGH-level call, as the axis was drawn
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$get_y_range_from_group(group)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{group}}{The recorded plot group holding the HIGH-level call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Numeric vector of two, or NULL
+  }
 }
 
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRLineLayerProcessor-axis_extent"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-axis_extent}{}}}
+\subsection{\code{BaseRLineLayerProcessor$axis_extent()}}{
+  The extent of an axis the way \code{plot.default()} sets it: an explicit
+\code{xlim}/\code{ylim}, or the finite data extended by 4 \% each way, which is
+what \code{abline()} draws its clipped line across.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$axis_extent(limits, data)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{limits}}{An explicit \code{xlim}/\code{ylim}, or NULL}
+      \item{\code{data}}{The plotted values on that axis}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Numeric vector of two, or NULL when nothing finite was plotted
+  }
 }
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-extract_main_title"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-extract_main_title}{}}}
-\subsection{Method \code{extract_main_title()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$extract_main_title(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$extract_main_title()}}{
+  The main title, taken from the HIGH-level call for \code{abline()}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$extract_main_title(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$generate_selectors(layer_info, gt = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$generate_selectors()}}{
+  One selector per polyline, in series order
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$generate_selectors(layer_info, gt = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+      \item{\code{gt}}{Gtable of the replayed drawing (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-find_lines_grobs"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-find_lines_grobs}{}}}
-\subsection{Method \code{find_lines_grobs()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$find_lines_grobs(
+\subsection{\code{BaseRLineLayerProcessor$find_lines_grobs()}}{
+  Find every grob of the given family drawn by the plot group at \code{group_index}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$find_lines_grobs(
   grob,
   group_index,
   grob_type = "lines"
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{The grob tree to search}
+      \item{\code{group_index}}{Index of the recorded plot group, which numbers the panel's grobs}
+      \item{\code{grob_type}}{The grob family to match: "lines", "abline", "segments", "spike" or "step"}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of grob names
+  }
 }
 
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRLineLayerProcessor-selector_grob_type"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-selector_grob_type}{}}}
+\subsection{\code{BaseRLineLayerProcessor$selector_grob_type()}}{
+  Which family of grob names this layer's selectors are drawn from:
+"abline", "lines", "segments", "spike" or "step". Overridden by
+subclasses whose geometry lands under a different grob name (see
+BaseRStepLayerProcessor).
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$selector_grob_type(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    "abline" or "lines"
+  }
 }
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-generate_selectors_from_grob"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-generate_selectors_from_grob}{}}}
-\subsection{Method \code{generate_selectors_from_grob()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$generate_selectors_from_grob(
+\subsection{\code{BaseRLineLayerProcessor$generate_selectors_from_grob()}}{
+  One selector per matching polyline, sorted by the grob number
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$generate_selectors_from_grob(
   grob,
   group_index,
   layer_info
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{The grob tree to search}
+      \item{\code{group_index}}{Index of the recorded plot group, which numbers the panel's grobs}
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRLineLayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRLineLayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRLineLayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRLineLayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRLineLayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

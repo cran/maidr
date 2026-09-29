@@ -11,9 +11,17 @@ show(plot = NULL, use_cdn = NULL, shiny = FALSE, as_widget = FALSE, ...)
 
 \item{use_cdn}{Logical. Controls where MAIDR.js is loaded from:
 \itemize{
-  \item \code{TRUE}: Use CDN (requires internet)
-  \item \code{FALSE}: Use local bundled files (works offline)
-  \item \code{NULL} (default): Auto-detect based on internet availability
+\item \code{TRUE}: Use the jsDelivr CDN (requires internet), which
+loads the latest published MAIDR.js rather than the bundled copy.
+The version is looked up once per R session; pin one with
+\code{options(maidr.cdn_version = ...)}, see
+\code{?"maidr-options"}.
+\item \code{FALSE}: Use local bundled files (works offline, and makes
+no network request)
+\item \code{NULL} (default): Use the bundled files, so the viewer
+works offline. With \code{as_widget = TRUE} the widget instead
+auto-detects internet availability and uses the CDN when online,
+as the knitr and Shiny paths do.
 }}
 
 \item{shiny}{If TRUE, returns just the SVG content instead of full HTML document}
@@ -28,6 +36,14 @@ Invisible NULL. The plot is displayed in RStudio Viewer or browser as a side eff
 \description{
 Display a ggplot2 or Base R plot as an interactive, accessible visualization
 using the MAIDR (Multimodal Access and Interactive Data Representation) system.
+}
+\details{
+Attaching maidr masks \code{methods::show()}. An object that is not a
+plot maidr renders -- an S4 object, a vector, a data frame -- is handed to
+\code{methods::show()}, so it prints as it did before maidr was attached.
+In a script or a package, call \code{maidr::show()} and
+\code{methods::show()} by name; \code{?"base-r-wrappers"} lists
+everything else attaching maidr masks.
 }
 \examples{
 # ggplot2 bar chart

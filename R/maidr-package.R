@@ -26,12 +26,15 @@
 #' \strong{ggplot2 plots:}
 #' \itemize{
 #'   \item Bar charts (simple, grouped, stacked) - \code{geom_bar()}, \code{geom_col()}
+#'   \item Pie charts - \code{geom_col()} / \code{geom_bar()} with \code{coord_polar("y")}
 #'   \item Histograms - \code{geom_histogram()}
 #'   \item Scatter plots - \code{geom_point()}
 #'   \item Line plots - \code{geom_line()}
+#'   \item Step plots - \code{geom_step()}
 #'   \item Box plots - \code{geom_boxplot()}
 #'   \item Violin plots - \code{geom_violin()}
 #'   \item Heat maps - \code{geom_tile()}
+#'   \item Candlestick (OHLC) charts - \code{tidyquant::geom_candlestick()}
 #'   \item Density/smooth curves - \code{geom_density()}, \code{geom_smooth()}
 #'   \item Faceted plots - \code{facet_wrap()}, \code{facet_grid()}
 #'   \item Multi-panel layouts (via 'patchwork' package)
@@ -41,12 +44,38 @@
 #' \strong{Base R plots:}
 #' \itemize{
 #'   \item Bar plots (simple, grouped, stacked) - \code{barplot()}
+#'   \item Pie charts - \code{pie()}
 #'   \item Histograms - \code{hist()}
 #'   \item Scatter and line plots - \code{plot()}, \code{points()}, \code{lines()}
+#'   \item Step plots - \code{plot(type = "s")}, \code{plot(type = "S")}
 #'   \item Box plots - \code{boxplot()}
 #'   \item Heat maps - \code{image()}, \code{heatmap()}
+#'   \item Contour plots - \code{contour()}
+#'   \item Candlestick (OHLC) charts - \code{quantmod::chartSeries()}
 #'   \item Multi-panel layouts - \code{par(mfrow)}, \code{par(mfcol)}
 #' }
+#'
+#' \strong{Experimental plot types:}
+#' The types above are stable. The package also reads a longer list of
+#' charts as prototypes: none has been through a user study, and each may
+#' change without a deprecation period. In these docs an experimental type
+#' is marked \[experimental\] after its name; a type with no mark is stable.
+#' Among them:
+#' \itemize{
+#'   \item ggplot2 area charts \[experimental\]
+#'   \item ggplot2 contour plots - \code{geom_contour()} \[experimental\]
+#'   \item ggplot2 error bars \[experimental\]
+#'   \item ggplot2 Gantt charts - \code{\link{maidr_gantt}()} \[experimental\]
+#'   \item ggplot2 hexbin plots \[experimental\]
+#'   \item ggplot2 ROC curves - \code{\link{maidr_roc}()} \[experimental\]
+#'   \item Base R correlograms \[experimental\]
+#'   \item Base R Q-Q plots \[experimental\]
+#'   \item Base R radar charts - \code{stars()} \[experimental\]
+#'   \item Base R mosaic plots \[experimental\]
+#'   \item Base R violin plots - \code{vioplot::vioplot()} \[experimental\]
+#'   \item Base R word clouds \[experimental\]
+#' }
+#' The full list is under "Experimental Plot Types" in the README.
 #'
 #' @section Accessibility Features:
 #' \itemize{

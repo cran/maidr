@@ -6,128 +6,244 @@
 \description{
 Processes Base R stacked bar plot layers intercepted via the patching
 system. Assumes sorting by x (columns) and then z (rows) has already been
-applied by the `SortingPatcher`.
+applied by the \code{SortingPatcher}.
 }
 \keyword{internal}
 \section{Super class}{
-\code{\link[maidr:LayerProcessor]{maidr::LayerProcessor}} -> \code{BaseRStackedBarLayerProcessor}
+\code{\link[maidr:LayerProcessor]{LayerProcessor}} -> \code{BaseRStackedBarLayerProcessor}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-BaseRStackedBarLayerProcessor-process}{\code{BaseRStackedBarLayerProcessor$process()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-needs_reordering}{\code{BaseRStackedBarLayerProcessor$needs_reordering()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-extract_data}{\code{BaseRStackedBarLayerProcessor$extract_data()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-extract_axis_titles}{\code{BaseRStackedBarLayerProcessor$extract_axis_titles()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-extract_main_title}{\code{BaseRStackedBarLayerProcessor$extract_main_title()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-generate_selectors}{\code{BaseRStackedBarLayerProcessor$generate_selectors()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-find_rect_groups}{\code{BaseRStackedBarLayerProcessor$find_rect_groups()}}
-\item \href{#method-BaseRStackedBarLayerProcessor-clone}{\code{BaseRStackedBarLayerProcessor$clone()}}
+  \itemize{
+    \item \href{#method-BaseRStackedBarLayerProcessor-process}{\code{BaseRStackedBarLayerProcessor$process()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-needs_reordering}{\code{BaseRStackedBarLayerProcessor$needs_reordering()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-extract_data}{\code{BaseRStackedBarLayerProcessor$extract_data()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-extract_axis_titles}{\code{BaseRStackedBarLayerProcessor$extract_axis_titles()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-extract_main_title}{\code{BaseRStackedBarLayerProcessor$extract_main_title()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-generate_selectors}{\code{BaseRStackedBarLayerProcessor$generate_selectors()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-find_rect_groups}{\code{BaseRStackedBarLayerProcessor$find_rect_groups()}}
+    \item \href{#method-BaseRStackedBarLayerProcessor-clone}{\code{BaseRStackedBarLayerProcessor$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="apply_scale_mapping"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-apply_scale_mapping'><code>maidr::LayerProcessor$apply_scale_mapping()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>maidr::LayerProcessor$augment_plot()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>maidr::LayerProcessor$extract_layer_axes()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>maidr::LayerProcessor$get_last_result()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>maidr::LayerProcessor$get_layer_index()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>maidr::LayerProcessor$initialize()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>maidr::LayerProcessor$needs_augmentation()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>maidr::LayerProcessor$reorder_layer_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>maidr::LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>LayerProcessor$augment_plot()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>LayerProcessor$extract_layer_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_grob_tree"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_grob_tree'><code>LayerProcessor$find_layer_grob_tree()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_polyline_grob"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_polyline_grob'><code>LayerProcessor$find_layer_polyline_grob()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>LayerProcessor$get_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_built_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_built_data'><code>LayerProcessor$get_layer_built_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>LayerProcessor$get_layer_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_own_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_own_layer'><code>LayerProcessor$get_own_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>LayerProcessor$initialize()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_flipped_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_flipped_layer'><code>LayerProcessor$is_flipped_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_horizontal_call"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_horizontal_call'><code>LayerProcessor$is_horizontal_call()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="layer_polyline_grobs"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-layer_polyline_grobs'><code>LayerProcessor$layer_polyline_grobs()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>LayerProcessor$needs_augmentation()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="other_geom_grob_prefixes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-other_geom_grob_prefixes'><code>LayerProcessor$other_geom_grob_prefixes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>LayerProcessor$reorder_layer_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="resolve_panel_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-resolve_panel_index'><code>LayerProcessor$resolve_panel_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="swap_point_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-swap_point_axes'><code>LayerProcessor$swap_point_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_columns"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_columns'><code>LayerProcessor$unflip_columns()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_panel_params"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_panel_params'><code>LayerProcessor$unflip_panel_params()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$process(
+\subsection{\code{BaseRStackedBarLayerProcessor$process()}}{
+  Process the layer: read its data, selectors, axis titles and main title from
+the recorded call
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$process(
   plot,
   layout,
   built = NULL,
   gt = NULL,
-  scale_mapping = NULL,
   grob_id = NULL,
   panel_id = NULL,
   panel_ctx = NULL,
   layer_info = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{Unused; present for the processor interface}
+      \item{\code{layout}}{Unused; present for the processor interface}
+      \item{\code{built}}{Unused; present for the processor interface}
+      \item{\code{gt}}{Gtable of the replayed drawing, searched for selectors (optional)}
+      \item{\code{grob_id}}{Unused; present for the processor interface}
+      \item{\code{panel_id}}{Unused; present for the processor interface}
+      \item{\code{panel_ctx}}{Unused; present for the processor interface}
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List describing the layer for the MAIDR payload
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-needs_reordering"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-needs_reordering}{}}}
-\subsection{Method \code{needs_reordering()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$needs_reordering()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$needs_reordering()}}{
+  Whether the plot data must be reordered before drawing; a Base R layer is read
+from the recorded call and never is
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$needs_reordering()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    FALSE
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$extract_data(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$extract_data()}}{
+  One series per row of the recorded height matrix
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$extract_data(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of series
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-extract_axis_titles"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-extract_axis_titles}{}}}
-\subsection{Method \code{extract_axis_titles()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$extract_axis_titles(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$extract_axis_titles()}}{
+  Extract the axis titles for this layer
+
+A stacked \code{barplot()} records no title unless the author wrote one, and
+its points always carry the column category on x and the segment height
+on y, so the defaults name those two. The stack's own dimension is
+already announced per point as z; nothing in the call names the
+variable those groups came from, so no z title is claimed.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$extract_axis_titles(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Canonical axes list
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-extract_main_title"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-extract_main_title}{}}}
-\subsection{Method \code{extract_main_title()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$extract_main_title(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$extract_main_title()}}{
+  The main title of the recorded call, or an empty string
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$extract_main_title(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$generate_selectors(layer_info, gt = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$generate_selectors()}}{
+  The selector for the segments, scoped to this layer's plot group
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$generate_selectors(
+  layer_info,
+  gt = NULL,
+  extracted_data = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+      \item{\code{gt}}{Gtable of the replayed drawing (optional)}
+      \item{\code{extracted_data}}{The data already extracted for this layer (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-find_rect_groups"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-find_rect_groups}{}}}
-\subsection{Method \code{find_rect_groups()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$find_rect_groups(grob, call_index)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$find_rect_groups()}}{
+  Find every rect group drawn by the plot group at \code{call_index}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$find_rect_groups(grob, call_index)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{The grob tree to search}
+      \item{\code{call_index}}{Index of the recorded plot group, which numbers the panel's grobs}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of grob names
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRStackedBarLayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRStackedBarLayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRStackedBarLayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRStackedBarLayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRStackedBarLayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

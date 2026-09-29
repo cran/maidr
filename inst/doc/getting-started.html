@@ -12,7 +12,6 @@
 
 <meta name="author" content="JooYoung Seo" />
 
-<meta name="date" content="2026-07-09" />
 
 <title>Getting Started with MAIDR</title>
 
@@ -341,7 +340,6 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Getting Started with MAIDR</h1>
 <h4 class="author">JooYoung Seo</h4>
-<h4 class="date">2026-07-09</h4>
 
 
 
@@ -358,8 +356,8 @@ keys</li>
 descriptions</li>
 <li><strong>Sonification</strong> - Hear data patterns through
 sound</li>
-<li><strong>HTML/SVG output</strong> - Standalone accessible
-visualizations</li>
+<li><strong>HTML/SVG output</strong> - Accessible charts that open in
+any browser</li>
 </ul>
 <p>MAIDR helps data scientists and researchers create inclusive
 visualizations that everyone can explore, regardless of visual
@@ -381,8 +379,9 @@ ability.</p>
 <ol style="list-style-type: decimal">
 <li><strong><code>show()</code></strong> - Display an interactive plot
 in RStudio Viewer or browser</li>
-<li><strong><code>save_html()</code></strong> - Save a plot as a
-standalone HTML file</li>
+<li><strong><code>save_html()</code></strong> - Save a plot as an HTML
+file, with the MAIDR.js library in a <code>lib/</code> folder beside
+it</li>
 </ol>
 <div id="quick-example-ggplot2-bar-chart" class="section level3">
 <h3>Quick Example: ggplot2 Bar Chart</h3>
@@ -434,47 +433,233 @@ standalone HTML file</li>
 <span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a><span class="fu">show</span>()</span></code></pre></div>
 </div>
 </div>
+<div id="how-maidr-hooks-into-your-session" class="section level2">
+<h2>How maidr hooks into your session</h2>
+<ul>
+<li><strong>Console.</strong> <code>library(maidr)</code> is all it
+takes. Printing a ggplot2 object, by typing <code>p</code> or
+<code>print(p)</code>, opens it in the maidr viewer;
+<code>show(p)</code> is the explicit form. Base R plotting calls are
+recorded, and <code>show()</code> with no argument opens the recorded
+chart. <code>save_html()</code> writes either kind to a file.</li>
+<li><strong>R Markdown and Quarto.</strong> Call <code>maidr_on()</code>
+once in a setup chunk. It installs the knitr hooks that turn every plot
+the document draws into an accessible chart; <code>library(maidr)</code>
+alone does not install them.</li>
+<li><strong>Shiny.</strong> Put <code>maidr_output()</code> in the UI
+and <code>render_maidr()</code> in the server; see
+<code>vignette(&quot;shiny-integration&quot;, package = &quot;maidr&quot;)</code>.</li>
+<li><strong>Turning it off.</strong> <code>maidr_off()</code> stops
+interception for the session and <code>maidr_on()</code> starts it
+again. <code>options(maidr.ggplot2 = FALSE)</code> leaves ggplot2
+printing alone, <code>options(maidr.base_r = FALSE)</code> stops
+recording Base R calls, and
+<code>options(maidr.auto_show = FALSE)</code>, in <code>.Rprofile</code>
+to make it permanent, turns everything off. See
+<code>?&quot;maidr-options&quot;</code>.</li>
+<li><strong>What gets masked.</strong> Attaching maidr puts its own
+copies of the Base R plotting functions, and of
+<code>methods::show()</code>, ahead of the originals; R lists them at
+<code>library(maidr)</code>. Each records the call and passes through to
+the original, and <code>show()</code> hands anything that is not a plot
+back to <code>methods::show()</code>. In a script or a package call
+<code>maidr::show()</code> by name, and attach vioplot, wordcloud or
+quantmod <em>before</em> maidr, or their own functions mask the wrappers
+and their charts go unrecorded. See <a href="https://r.maidr.ai/reference/base-r-wrappers.html"><code>?&quot;base-r-wrappers&quot;</code></a>.</li>
+</ul>
+</div>
+<div id="interactive-htmlwidgets-plotly-highcharter-and-echarts4r" class="section level2">
+<h2>Interactive htmlwidgets: plotly, highcharter and echarts4r</h2>
+<p><code>maidr_htmlwidget()</code> takes an interactive chart drawn by
+plotly, highcharter or echarts4r and returns it with MAIDR attached.
+MAIDR reads the chart in the browser, through the adapter for the
+library that draws it, so the widget keeps working everywhere an
+htmlwidget does: the viewer, <code>htmlwidgets::saveWidget()</code>,
+this document, and Shiny, where a re-rendered chart is read again.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co"># plotly, including ggplotly()</span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>plotly<span class="sc">::</span><span class="fu">plot_ly</span>(mtcars, <span class="at">x =</span> <span class="sc">~</span>wt, <span class="at">y =</span> <span class="sc">~</span>mpg, <span class="at">type =</span> <span class="st">&quot;scatter&quot;</span>, <span class="at">mode =</span> <span class="st">&quot;markers&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="fu">maidr_htmlwidget</span>()</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co"># highcharter</span></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>highcharter<span class="sc">::</span><span class="fu">hchart</span>(mtcars, <span class="st">&quot;scatter&quot;</span>, highcharter<span class="sc">::</span><span class="fu">hcaes</span>(wt, mpg)) <span class="sc">|&gt;</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="fu">maidr_htmlwidget</span>()</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="co"># echarts4r</span></span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>mtcars <span class="sc">|&gt;</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>  echarts4r<span class="sc">::</span><span class="fu">e_charts</span>(wt) <span class="sc">|&gt;</span></span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>  echarts4r<span class="sc">::</span><span class="fu">e_scatter</span>(mpg) <span class="sc">|&gt;</span></span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>  <span class="fu">maidr_htmlwidget</span>()</span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a></span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a><span class="co"># In Shiny, wrap the widget inside its own render function</span></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a><span class="co"># output$chart &lt;- plotly::renderPlotly(maidr_htmlwidget(plotly::plot_ly(...)))</span></span></code></pre></div>
+<p>An echarts4r chart is switched to ECharts’ SVG renderer, which MAIDR
+needs to highlight the mark being read. While an echarts4r chart shows
+its legend, the visual highlight is off; audio, text and braille are not
+affected.</p>
+</div>
 <div id="offline-vs-cdn-usage" class="section level2">
 <h2>Offline vs CDN Usage</h2>
-<p>By default, MAIDR auto-detects internet availability and loads the
-MAIDR.js library from a CDN when online. You can control this behavior
-with the <code>use_cdn</code> parameter:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(mtcars, <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">factor</span>(cyl), <span class="at">y =</span> mpg)) <span class="sc">+</span></span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="fu">geom_bar</span>(<span class="at">stat =</span> <span class="st">&quot;identity&quot;</span>)</span>
-<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a></span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co"># Auto-detect (default) - uses CDN if internet available</span></span>
-<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="fu">show</span>(p)</span>
-<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a></span>
-<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a><span class="co"># Force CDN (requires internet when viewing)</span></span>
-<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="fu">show</span>(p, <span class="at">use_cdn =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a></span>
-<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a><span class="co"># Force bundled/local files (works offline)</span></span>
-<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a><span class="fu">show</span>(p, <span class="at">use_cdn =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<p>The same parameter works with <code>save_html()</code>:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Save with CDN links (smaller file, needs internet to view)</span></span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">save_html</span>(p, <span class="st">&quot;plot_cdn.html&quot;</span>, <span class="at">use_cdn =</span> <span class="cn">TRUE</span>)</span>
+<p>By default, <code>show()</code> and <code>save_html()</code> use the
+bundled MAIDR.js library, so the result works offline.
+<code>save_html()</code> writes the library to a <code>lib/</code>
+folder beside the file, and the two have to be shared together (zip the
+folder that holds both): an <code>.html</code> sent on its own loads no
+MAIDR.js and shows a plain, inaccessible chart. Widgets, knitr documents
+and Shiny apps auto-detect internet availability and use the CDN when
+online. You can control this behavior with the <code>use_cdn</code>
+parameter:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
 <span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="co"># Save with bundled files (larger file, works offline)</span></span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="fu">save_html</span>(p, <span class="st">&quot;plot_offline.html&quot;</span>, <span class="at">use_cdn =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<p><strong>When to use <code>use_cdn = FALSE</code>:</strong> - Creating
-portable HTML files for offline viewing - Sharing files with users who
-may not have internet access - Ensuring reproducibility with a specific
-MAIDR.js version</p>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(mtcars, <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">factor</span>(cyl), <span class="at">y =</span> mpg)) <span class="sc">+</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  <span class="fu">geom_bar</span>(<span class="at">stat =</span> <span class="st">&quot;identity&quot;</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co"># Default - bundled files, works offline</span></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="fu">show</span>(p)</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co"># Force CDN (requires internet when viewing; loads the latest MAIDR.js)</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="fu">show</span>(p, <span class="at">use_cdn =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co"># Force bundled/local files (works offline)</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="fu">show</span>(p, <span class="at">use_cdn =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<p>The same parameter works with <code>save_html()</code>:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># One self-contained file; needs internet whenever it is viewed</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">save_html</span>(p, <span class="st">&quot;plot_cdn.html&quot;</span>, <span class="at">use_cdn =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co"># The file plus a lib/ folder beside it; works offline</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="fu">save_html</span>(p, <span class="st">&quot;plot_offline.html&quot;</span>, <span class="at">use_cdn =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<p>The CDN paths load the <strong>latest published MAIDR.js</strong>,
+not the copy bundled with the package, the same as the Python binding.
+The first CDN document in an R session asks jsDelivr (falling back to
+the npm registry) which version that is, allowing 3 seconds, and every
+document in the session names that exact version. When the lookup cannot
+be made – offline, or blocked – nothing fails: the document names the
+bundled version, the copy <code>use_cdn = FALSE</code> would serve.
+Documents rendered with <code>use_cdn = FALSE</code> make no network
+request at all.</p>
+<p>To load a fixed version from the CDN instead, pin it with an option
+or the <code>MAIDR_CDN_VERSION</code> environment variable (the option
+wins). A pinned document makes no lookup:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># The version bundled with this package</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="fu">options</span>(<span class="at">maidr.cdn_version =</span> <span class="st">&quot;bundled&quot;</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co"># A particular release</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="fu">options</span>(<span class="at">maidr.cdn_version =</span> <span class="st">&quot;4.9.0&quot;</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co"># Back to the latest</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="fu">options</span>(<span class="at">maidr.cdn_version =</span> <span class="cn">NULL</span>)</span></code></pre></div>
+<p><code>maidr.cdn_timeout</code> (or <code>MAIDR_CDN_TIMEOUT</code>)
+changes the time allowed for the lookup. See
+<code>?&quot;maidr-options&quot;</code> for the details.</p>
+<p><strong>When to use <code>use_cdn = FALSE</code>:</strong> - Viewing
+offline, or sharing with readers who may not have internet access: send
+the file together with its <code>lib/</code> folder (zip the two), never
+the <code>.html</code> alone - Ensuring reproducibility with a specific
+MAIDR.js version (or pin one on the CDN with
+<code>maidr.cdn_version</code>)</p>
+<p><strong>When to use <code>use_cdn = TRUE</code>:</strong> - Attaching
+or uploading a single file, for readers who will be online - Loading the
+newest MAIDR.js without updating the R package</p>
+<div id="the-dotpad-sdk" class="section level3">
+<h3>The DotPad SDK</h3>
+<p>One thing an offline document still fetches: the SDK for the <a href="https://maidr.ai/docs/TACTILE_DISPLAY.html">DotPad tactile
+display</a>. maidr.js does not bundle it (its licence does not permit
+redistribution) and imports the vendor’s copy from jsDelivr the first
+time a reader connects a DotPad. The document renders, sonifies and
+brailles without the network; only that first connect needs it.</p>
+<p>To keep the DotPad offline as well, serve the SDK yourself and tell
+maidr where it is before rendering. Options and environment variables of
+the same names both work; an option wins when both are set:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">options</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="at">maidr.dotpad_sdk_url =</span> <span class="st">&quot;https://intranet.example/dotpad/DotPadSDK-3.0.3.js&quot;</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="co"># Only if the braille engine (liblouis) is not in lib/ beside the module</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">maidr.dotpad_asset_base_url =</span> <span class="st">&quot;https://intranet.example/dotpad/lib/&quot;</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>)</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="fu">save_html</span>(p, <span class="st">&quot;plot_offline.html&quot;</span>, <span class="at">use_cdn =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<p>Every document maidr produces (<code>show()</code>,
+<code>save_html()</code>, widgets, knitr and Shiny) then declares
+<code>window.MAIDR_DOTPAD_SDK_URL</code> and
+<code>window.MAIDR_DOTPAD_ASSET_BASE_URL</code> ahead of maidr.js, and
+the CDN is never asked for the SDK. See <code>?&quot;maidr-options&quot;</code>
+for the details.</p>
+</div>
 </div>
 <div id="exploring-accessible-plots" class="section level2">
 <h2>Exploring Accessible Plots</h2>
 <p>When you open a MAIDR plot, you can explore it using:</p>
 <div id="keyboard-navigation" class="section level3">
 <h3>Keyboard Navigation</h3>
-<ul>
-<li><strong>Arrow keys</strong> - Navigate between data points</li>
-<li><strong>Tab</strong> - Move between interactive elements</li>
-<li><strong>Enter/Space</strong> - Activate controls</li>
-<li><strong>Escape</strong> - Exit modes</li>
-</ul>
+<!-- maidr-keys:start -->
+<table>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Tab</strong></td>
+<td>Focus the chart; <strong>Shift + Tab</strong> leaves it</td>
+</tr>
+<tr class="even">
+<td><strong>Left / Right</strong></td>
+<td>Move between data points</td>
+</tr>
+<tr class="odd">
+<td><strong>Up / Down</strong></td>
+<td>Move between series, stacked segments, heat map rows or box plot
+sections, on a chart that has them</td>
+</tr>
+<tr class="even">
+<td><strong>Page Up / Page Down</strong></td>
+<td>Switch between the layers of a chart that has several</td>
+</tr>
+<tr class="odd">
+<td><strong>B</strong></td>
+<td>Toggle braille mode</td>
+</tr>
+<tr class="even">
+<td><strong>T</strong></td>
+<td>Toggle text mode</td>
+</tr>
+<tr class="odd">
+<td><strong>S</strong></td>
+<td>Toggle sonification</td>
+</tr>
+<tr class="even">
+<td><strong>R</strong></td>
+<td>Toggle review mode</td>
+</tr>
+<tr class="odd">
+<td><strong>C</strong></td>
+<td>Toggle high contrast mode</td>
+</tr>
+<tr class="even">
+<td><strong>L</strong>, then <strong>X</strong>, <strong>Y</strong> or
+<strong>T</strong></td>
+<td>Announce the x axis label, the y axis label or the title</td>
+</tr>
+<tr class="odd">
+<td><strong>Space</strong></td>
+<td>Repeat the current sound</td>
+</tr>
+<tr class="even">
+<td><strong>Ctrl + /</strong> (<strong>Cmd + /</strong> on macOS)</td>
+<td>Show or hide the full keyboard shortcut help</td>
+</tr>
+</tbody>
+</table>
+<p>Every other shortcut, including autoplay, jumping to the ends, the
+command palette, settings and the AI chat, is on the <a href="https://maidr.ai/docs/CONTROLS.html">MAIDR controls reference</a>.
+<!-- maidr-keys:end --></p>
 </div>
 <div id="screen-reader-announcements" class="section level3">
 <h3>Screen Reader Announcements</h3>
@@ -496,6 +681,50 @@ MAIDR.js version</p>
 </ul>
 </div>
 </div>
+<div id="quarto-reveal.js-slides" class="section level2">
+<h2>Quarto reveal.js Slides</h2>
+<p>A <code>revealjs</code> deck needs nothing special from this package:
+call <code>maidr_on()</code> once in a setup chunk, as in any other
+Quarto or R Markdown document, and every plot the deck draws becomes an
+accessible MAIDR chart.</p>
+<p>A chart on a <code>revealjs</code> slide is keyboard reachable on its
+own: <strong>Tab</strong> moves into it, the arrow keys explore it, and
+<strong>Shift+Tab</strong> hands focus back to the slide, so
+<strong>Space</strong> advances the deck again. None of that needs
+configuring.</p>
+<p>What does need attention is a reveal.js behavior that has nothing to
+do with MAIDR. reveal.js keeps the slides on either side of the current
+one rendered so that transitions stay smooth, and marking them
+<code>hidden</code> does not take them out of the tab order — reveal’s
+own inline style overrides the attribute. On a deck with a chart on
+every slide, a single <strong>Tab</strong> can therefore land on an
+off-screen slide’s chart rather than the one in front of the reader.
+This is <a href="https://github.com/hakimel/reveal.js/issues/1587">hakimel/reveal.js#1587</a>,
+open since 2016.</p>
+<p>The fix is now on reveal.js <code>master</code>, which marks every
+slide but the current one <code>inert</code>. It has not reached a
+published release yet, and Quarto carries its own copy of reveal.js —
+Quarto 1.10 ships 5.1.0 — so it will arrive in a Quarto release some
+time after reveal.js cuts one. Nothing will need to change in your deck
+when it does.</p>
+<p>Until then, <a href="https://github.com/mcanouil/quarto-revealjs-a11y">quarto-revealjs-a11y</a>
+does the same thing for a Quarto deck. Add it once per project:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="ex">quarto</span> add mcanouil/quarto-revealjs-a11y</span></code></pre></div>
+<p>and enable it in the deck’s front matter:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">format</span><span class="kw">:</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="at">  </span><span class="fu">revealjs</span><span class="kw">:</span></span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="at">    </span><span class="fu">revealjs-plugins</span><span class="kw">:</span></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> a11y</span></span></code></pre></div>
+<p>Use <strong>0.2.3 or newer</strong>. Earlier versions took off-slide
+elements out of the tab order by setting <code>tabindex=&quot;-1&quot;</code> on
+them and could not find them again to put them back, which left the
+chart on the <em>current</em> slide unreachable as well.</p>
+<p>With the extension enabled, each slide gives one <strong>Tab</strong>
+to its own chart and <strong>Shift+Tab</strong> back out. The extension
+also adds a skip link ahead of the slides, so Shift+Tab lands there
+rather than on the slide element itself; either way
+<strong>Space</strong> still moves to the next slide.</p>
+</div>
 <div id="supported-plot-types" class="section level2">
 <h2>Supported Plot Types</h2>
 <p>MAIDR supports a comprehensive range of visualizations:</p>
@@ -503,23 +732,31 @@ MAIDR.js version</p>
 <h3>Basic Plot Types</h3>
 <ul>
 <li>Bar charts (simple, grouped/dodged, stacked)</li>
+<li>Pie charts — ggplot2 via
+<code>geom_col()</code>/<code>geom_bar()</code> +
+<code>coord_polar(&quot;y&quot;)</code>; Base R via <code>pie()</code></li>
 <li>Histograms</li>
 <li>Scatter plots</li>
 <li>Line plots (single and multi-line)</li>
+<li>Step plots — <code>geom_step()</code> in ggplot2,
+<code>plot(type = &quot;s&quot;)</code> / <code>plot(type = &quot;S&quot;)</code> in Base R
+— for values that are piecewise constant, such as a sleep-stage
+hypnogram</li>
 <li>Box plots</li>
-<li>Violin plots (ggplot2 only)</li>
+<li>Violin plots (ggplot2 <code>geom_violin()</code>)</li>
 <li>Candlestick (OHLC) charts — ggplot2 via {tidyquant} (with optional
 <code>geom_ma()</code> moving-average overlays and a patchwork volume
-sub-panel); Base R via <code>quantmod::chartSeries()</code> (OHLC-only —
-TA overlays such as <code>addVo()</code>, <code>addSMA()</code>,
-<code>addEMA()</code> are not supported and fall back to native
-graphics)</li>
+sub-panel); Base R via <code>quantmod::chartSeries()</code>, with its
+<code>addVo()</code> volume panel read as a bar layer (other TA overlays
+such as <code>addSMA()</code> and <code>addEMA()</code> are not
+supported and fall back to native graphics)</li>
 <li>Heatmaps</li>
+<li>Contour plots (Base R <code>contour()</code>)</li>
 <li>Density/smooth curves</li>
 </ul>
-<p>See the <a href="https://r.maidr.ai/articles/examples.html">Examples
-article</a> for the full candlestick + MA + volume pipeline and the Base
-R support matrix.</p>
+<p>See the <a href="https://r.maidr.ai/articles/examples-heatmap-candlestick.html">Heat
+Map and Candlestick Examples</a> article for the full candlestick + MA +
+volume pipeline and the Base R support matrix.</p>
 </div>
 <div id="advanced-plot-types" class="section level3">
 <h3>Advanced Plot Types</h3>
@@ -531,6 +768,26 @@ R support matrix.</p>
 <li><strong>Multi-layered plots</strong> - Combine multiple geoms (e.g.,
 histogram + density)</li>
 </ul>
+</div>
+<div id="experimental-plot-types" class="section level3">
+<h3>Experimental Plot Types</h3>
+<p>Every type above is stable. maidr also reads a longer list of charts
+as prototypes: none has been through a user study, and each may change
+without a deprecation period. Here and in the rest of the docs an
+experimental type is marked <strong>[experimental]</strong> after its
+name; a type with no mark is stable. Among them:</p>
+<ul>
+<li>ggplot2: area and stacked area charts [experimental], contour plots
+via <code>geom_contour()</code> [experimental], error bars
+[experimental], Gantt charts via <code>maidr_gantt()</code>
+[experimental], hexbin plots [experimental] and ROC curves via
+<code>maidr_roc()</code> [experimental]</li>
+<li>Base R: correlograms [experimental], Q-Q plots [experimental], radar
+charts via <code>stars()</code> [experimental], mosaic plots
+[experimental], violin plots via <code>vioplot::vioplot()</code>
+[experimental] and word clouds [experimental]</li>
+</ul>
+<p>The full list is under “Experimental Plot Types” in the <a href="https://r.maidr.ai/#experimental-plot-types">README</a>.</p>
 </div>
 </div>
 <div id="next-steps" class="section level2">
@@ -548,71 +805,71 @@ Integration</a></strong> - Use MAIDR in Shiny apps</li>
 <h2>Example Gallery</h2>
 <div id="histogram" class="section level3">
 <h3>Histogram</h3>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co"># Normal distribution</span></span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>hist_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">values =</span> <span class="fu">rnorm</span>(<span class="dv">1000</span>, <span class="at">mean =</span> <span class="dv">100</span>, <span class="at">sd =</span> <span class="dv">15</span>))</span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a></span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(hist_data, <span class="fu">aes</span>(<span class="at">x =</span> values)) <span class="sc">+</span></span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">30</span>, <span class="at">fill =</span> <span class="st">&quot;skyblue&quot;</span>, <span class="at">color =</span> <span class="st">&quot;black&quot;</span>) <span class="sc">+</span></span>
-<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Distribution of Test Scores&quot;</span>,</span>
-<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Score&quot;</span>,</span>
-<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Frequency&quot;</span></span>
-<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
-<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a></span>
-<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="fu">show</span>(p)</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co"># Normal distribution</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>hist_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">values =</span> <span class="fu">rnorm</span>(<span class="dv">1000</span>, <span class="at">mean =</span> <span class="dv">100</span>, <span class="at">sd =</span> <span class="dv">15</span>))</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(hist_data, <span class="fu">aes</span>(<span class="at">x =</span> values)) <span class="sc">+</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">30</span>, <span class="at">fill =</span> <span class="st">&quot;skyblue&quot;</span>, <span class="at">color =</span> <span class="st">&quot;black&quot;</span>) <span class="sc">+</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Distribution of Test Scores&quot;</span>,</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Score&quot;</span>,</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Frequency&quot;</span></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a><span class="fu">show</span>(p)</span></code></pre></div>
 </div>
 <div id="scatter-plot" class="section level3">
 <h3>Scatter Plot</h3>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co"># Create sample data</span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>scatter_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>  <span class="at">height =</span> <span class="fu">rnorm</span>(<span class="dv">50</span>, <span class="dv">170</span>, <span class="dv">10</span>),</span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>  <span class="at">weight =</span> <span class="fu">rnorm</span>(<span class="dv">50</span>, <span class="dv">70</span>, <span class="dv">8</span>),</span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>  <span class="at">gender =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="st">&quot;Male&quot;</span>, <span class="st">&quot;Female&quot;</span>), <span class="dv">50</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a>)</span>
-<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a></span>
-<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(scatter_data, <span class="fu">aes</span>(<span class="at">x =</span> height, <span class="at">y =</span> weight, <span class="at">color =</span> gender)) <span class="sc">+</span></span>
-<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>, <span class="at">alpha =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
-<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Height vs Weight&quot;</span>,</span>
-<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Height (cm)&quot;</span>,</span>
-<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Weight (kg)&quot;</span></span>
-<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
-<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a></span>
-<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a><span class="fu">show</span>(p)</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="co"># Create sample data</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>scatter_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>  <span class="at">height =</span> <span class="fu">rnorm</span>(<span class="dv">50</span>, <span class="dv">170</span>, <span class="dv">10</span>),</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>  <span class="at">weight =</span> <span class="fu">rnorm</span>(<span class="dv">50</span>, <span class="dv">70</span>, <span class="dv">8</span>),</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>  <span class="at">gender =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="st">&quot;Male&quot;</span>, <span class="st">&quot;Female&quot;</span>), <span class="dv">50</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>)</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(scatter_data, <span class="fu">aes</span>(<span class="at">x =</span> height, <span class="at">y =</span> weight, <span class="at">color =</span> gender)) <span class="sc">+</span></span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>, <span class="at">alpha =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Height vs Weight&quot;</span>,</span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Height (cm)&quot;</span>,</span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Weight (kg)&quot;</span></span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a></span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a><span class="fu">show</span>(p)</span></code></pre></div>
 </div>
 <div id="line-plot" class="section level3">
 <h3>Line Plot</h3>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co"># Time series data</span></span>
-<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>months <span class="ot">&lt;-</span> month.abb[<span class="dv">1</span><span class="sc">:</span><span class="dv">12</span>]</span>
-<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>temperature <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">12</span>, <span class="dv">18</span>, <span class="dv">22</span>, <span class="dv">26</span>, <span class="dv">28</span>, <span class="dv">27</span>, <span class="dv">23</span>, <span class="dv">17</span>, <span class="dv">11</span>, <span class="dv">6</span>)</span>
-<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a></span>
-<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>temp_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>  <span class="at">Month =</span> <span class="fu">factor</span>(months, <span class="at">levels =</span> months),</span>
-<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>  <span class="at">Temperature =</span> temperature</span>
-<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>)</span>
-<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a></span>
-<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(temp_data, <span class="fu">aes</span>(<span class="at">x =</span> Month, <span class="at">y =</span> Temperature, <span class="at">group =</span> <span class="dv">1</span>)) <span class="sc">+</span></span>
-<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">color =</span> <span class="st">&quot;red&quot;</span>, <span class="at">linewidth =</span> <span class="fl">1.5</span>) <span class="sc">+</span></span>
-<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">color =</span> <span class="st">&quot;darkred&quot;</span>, <span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
-<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Average Monthly Temperature&quot;</span>,</span>
-<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Month&quot;</span>,</span>
-<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Temperature (°C)&quot;</span></span>
-<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
-<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a></span>
-<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a><span class="fu">show</span>(p)</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">library</span>(maidr)</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="co"># Time series data</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>months <span class="ot">&lt;-</span> month.abb[<span class="dv">1</span><span class="sc">:</span><span class="dv">12</span>]</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>temperature <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">12</span>, <span class="dv">18</span>, <span class="dv">22</span>, <span class="dv">26</span>, <span class="dv">28</span>, <span class="dv">27</span>, <span class="dv">23</span>, <span class="dv">17</span>, <span class="dv">11</span>, <span class="dv">6</span>)</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>temp_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>  <span class="at">Month =</span> <span class="fu">factor</span>(months, <span class="at">levels =</span> months),</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>  <span class="at">Temperature =</span> temperature</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>)</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(temp_data, <span class="fu">aes</span>(<span class="at">x =</span> Month, <span class="at">y =</span> Temperature, <span class="at">group =</span> <span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">color =</span> <span class="st">&quot;red&quot;</span>, <span class="at">linewidth =</span> <span class="fl">1.5</span>) <span class="sc">+</span></span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">color =</span> <span class="st">&quot;darkred&quot;</span>, <span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Average Monthly Temperature&quot;</span>,</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Month&quot;</span>,</span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Temperature (°C)&quot;</span></span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a></span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a><span class="fu">show</span>(p)</span></code></pre></div>
 </div>
 </div>
 <div id="tips-for-creating-accessible-plots" class="section level2">
@@ -632,7 +889,7 @@ visualizations</li>
 <h2>Getting Help</h2>
 <ul>
 <li>Run <code>?maidr::show</code> for function documentation</li>
-<li>Visit GitHub issues: <a href="https://github.com/xability/maidr/issues">maidr/issues</a></li>
+<li>Report a bug or ask for a feature at <a href="https://github.com/xability/r-maidr/issues">xability/r-maidr/issues</a></li>
 <li>Read the full documentation:
 <code>help(package = &quot;maidr&quot;)</code></li>
 </ul>

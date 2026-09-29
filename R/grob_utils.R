@@ -1,19 +1,70 @@
 # Utility functions for grob manipulation
 
-#' Find the panel grob in a grob tree
-#' @param grob_tree The grob tree to search
-#' @return The panel grob or NULL if not found
-find_panel_grob <- function(grob_tree) {
-  if (is.null(grob_tree)) {
-    return(NULL)
+#' Does a layer's curve land in the panel's auto-named polyline population?
+#'
+#' `layer_polyline_grobs()` keeps every polyline that no *geom-named* tree
+#' claims, so the population it returns is "layers that draw a BARE polyline"
+#' -- which is not the same set as "layers typed line". `geom_function()` is
+#' typed `smooth` and draws one anyway: `GeomFunction` inherits
+#' `GeomPath$draw_panel()`, which returns a `polylineGrob` with nothing named
+#' around it, while `GeomSmooth` and `GeomDensity` wrap theirs in
+#' `geom_smooth.gTree` / `geom_density.gTree` and are skipped whole.
+#'
+#' Counting only the line-ish types therefore counted a population one
+#' smaller than the one being indexed, and a `geom_function()` drawn *before*
+#' a `geom_line()` handed the line the function's curve to highlight (#204).
+#' Both charts read correctly the whole time, which is the highlight-only
+#' shape xability/maidr#814 names.
+#'
+#' @param layer A ggplot2 layer.
+#' @param type The layer type the adapter detected for it.
+#' @return `TRUE` when the layer draws a bare, auto-named polyline.
+#' @keywords internal
+layer_draws_bare_polyline <- function(layer, type) {
+  if (isTRUE(type %in% c("line", "step", "contour"))) {
+    return(TRUE)
   }
-  for (i in seq_along(grob_tree$grobs)) {
-    grob <- grob_tree$grobs[[i]]
-    if (!is.null(grob) && !is.null(grob$name) && grepl("^panel-.*\\.gTree", grob$name)) {
-      return(grob)
-    }
-  }
-  NULL
+  isTRUE(inherits(layer$geom, "GeomFunction"))
+}
+
+#' Position (1-based) of a layer among the polyline-producing layers of a plot
+#'
+#' `layer_polyline_grobs()` returns every polyline in the panel that no
+#' geom-named grob tree claims, so the index used to pick one out has to be
+#' counted over the same population.
+#' `geom_line()` / `geom_path()` / `tidyquant::geom_ma()` (detected as
+#' `"line"`), `geom_step()` (detected as `"step"`) and `geom_contour()` /
+#' `geom_density_2d()` (detected as `"contour"`) each render one auto-named
+#' polyline grob per layer, so all three types count. Counting only `"line"`
+#' layers would index the wrong polyline for *every* layer of a plot that
+#' combines them -- and both charts would read correctly while outlining each
+#' other's curves, which is the highlight-only failure xability/maidr#814
+#' names.
+#'
+#' @param plot The ggplot2 object.
+#' @param layer_index Index of the layer of interest in `plot$layers`.
+#' @return The 1-based position, or NULL when the layer produces no polyline
+#'   or registry-based detection fails.
+#' @keywords internal
+polyline_layer_position <- function(plot, layer_index) {
+  tryCatch(
+    {
+      registry <- get_global_registry()
+      adapter <- registry$get_adapter("ggplot2")
+      pos <- 0L
+      for (i in seq_along(plot$layers)) {
+        tp <- adapter$detect_layer_type(plot$layers[[i]], plot)
+        if (layer_draws_bare_polyline(plot$layers[[i]], tp)) {
+          pos <- pos + 1L
+          if (i == layer_index) {
+            return(pos)
+          }
+        }
+      }
+      NULL
+    },
+    error = function(e) NULL
+  )
 }
 
 #' Find children matching a type pattern
@@ -32,4 +83,59 @@ find_children_by_type <- function(parent_grob, pattern) {
 
   matching <- grepl(pattern, child_names)
   child_names[matching]
+}
+
+#' The grob a ggplot2 layer drew, found by its slot in the panel
+#'
+#' ggplot2 lays a panel out as \code{grill}, a \code{zeroGrob}, then one grob
+#' per layer in layer order, then the panel's border -- so this layer's grob
+#' is the one \code{index} places after that first blank. A search by grob
+#' name cannot tell two layers of the same geom apart: two \code{geom_col()}s
+#' in a panel are both \code{geom_rect.rect.N}, and a search that collects
+#' every match hands each layer the other's bars as well as its own.
+#'
+#' \code{LayerProcessor$find_layer_grob_tree()} matches on the geom's own
+#' class, and a \code{geom_col()} layer is \code{GeomCol} while the grob it
+#' draws is named after \code{geom_rect}, so it does not serve here. Counting
+#' containers instead of slots does not either -- a \code{geom_text()} layer
+#' occupies a slot and draws no container, so the counts stop lining up.
+#'
+#' @param panel The panel grob, or NULL
+#' @param index The layer's index in the plot, or NULL
+#' @return The grob in the layer's slot, or NULL when the slot cannot be
+#'   established
+#' @keywords internal
+find_layer_slot_grob <- function(panel, index) {
+  if (is.null(panel) || !inherits(panel, "gTree") || is.null(index)) {
+    return(NULL)
+  }
+
+  children <- panel$children
+  blanks <- which(vapply(
+    children, function(g) inherits(g, "zeroGrob"), logical(1)
+  ))
+  grill <- which(vapply(
+    children,
+    function(g) !is.null(g$name) && grepl("^grill", g$name),
+    logical(1)
+  ))
+
+  # The layers start after the grill and the blank ggplot2 puts behind it.
+  # A patchwork panel has no such blank -- its first layer follows the
+  # grill directly -- so the blank is optional, and its absence must not
+  # send the search to the panel border's blank at the far end, which is
+  # what left a pie inside a composition with no wedges to name (#316).
+  first <- if (length(grill) > 0L) {
+    grill[1] + as.integer((grill[1] + 1L) %in% blanks)
+  } else if (length(blanks) > 0L) {
+    blanks[1]
+  } else {
+    return(NULL)
+  }
+
+  at <- first + as.integer(index)
+  if (at < 1L || at > length(children)) {
+    return(NULL)
+  }
+  children[[at]]
 }

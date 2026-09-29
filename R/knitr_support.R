@@ -1,9 +1,15 @@
 #' Enable MAIDR Plot Interception
 #'
-#' Enables automatic accessible rendering of ggplot2 and Base R plots.
-#' In interactive sessions, plots are displayed in the MAIDR interactive viewer.
-#' In RMarkdown documents, plots are converted to accessible MAIDR widgets
-#' with keyboard navigation and screen reader support.
+#' Turns on the accessible rendering of ggplot2 and Base R plots, and
+#' installs the knitr hooks that an R Markdown or Quarto document needs.
+#'
+#' Interception is on by default after `library(maidr)`: printing a ggplot2
+#' object opens it in the MAIDR viewer, and Base R plotting calls are
+#' recorded until [show()] is called. Calling `maidr_on()` yourself is needed
+#' in two places: after [maidr_off()], to start again, and once in the setup
+#' chunk of an R Markdown or Quarto document, where it registers the
+#' `knit_print` methods and the plot hook that turn every plot the document
+#' draws into an accessible chart. `library(maidr)` alone installs neither.
 #'
 #' @return Invisible TRUE on success
 #' @examples
@@ -73,8 +79,13 @@ maidr_on <- function() {
       envir = asNamespace("knitr")
     )
 
-    # Store original plot hook
-    .maidr_knitr_state$original_plot_hook <- knitr::knit_hooks$get("plot")
+    # Store original plot hook - but never our own hook: a second
+    # maidr_on() call would otherwise capture maidr_plot_hook as the
+    # "original", making the fallback path recurse into itself forever.
+    current_hook <- knitr::knit_hooks$get("plot")
+    if (!identical(current_hook, maidr_plot_hook)) {
+      .maidr_knitr_state$original_plot_hook <- current_hook
+    }
 
     # Override the plot hook to intercept Base R plots
     knitr::knit_hooks$set(plot = maidr_plot_hook)
@@ -151,11 +162,20 @@ is_maidr_on <- function() {
 #' @return A knit_asis object containing the iframe HTML or inline image
 #' @keywords internal
 knit_print.ggplot <- function(x, options = list(), ...) {
+  # registerS3method() cannot be undone, so honour maidr_off() here:
+  # render with the original ggplot2 print method when disabled.
+  if (!is_ggplot2_enabled()) {
+    print_ggplot_natively(x)
+    return(invisible(NULL))
+  }
+
   # Check output format - only use iframes for HTML output
   if (!is_html_output()) {
-    # For PDF/EPUB/LaTeX: let knitr handle the plot natively
-    # Print the plot and use default knit_print behavior
-    print(x)
+    # For PDF/EPUB/LaTeX: let knitr handle the plot natively. Use the
+    # ORIGINAL ggplot2 print method: plain print(x) would dispatch to
+    # maidr's own print.ggplot override and hijack the figure out of the
+    # document.
+    print_ggplot_natively(x)
     return(invisible(NULL))
   }
 
@@ -174,11 +194,7 @@ knit_print.ggplot <- function(x, options = list(), ...) {
   content <- create_maidr_html(x, shiny = TRUE, orchestrator = orchestrator)
 
   # For supported MAIDR plots in HTML: use full iframe with MAIDR.js
-  iframe_html <- create_maidr_iframe(
-    svg_content = content,
-    width = "100%",
-    height = "450px"
-  )
+  iframe_html <- create_knitr_iframe(content)
 
   # Return as raw HTML
   knitr::asis_output(iframe_html)
@@ -196,6 +212,11 @@ knit_print.ggplot <- function(x, options = list(), ...) {
 #' @return An invisible empty string
 #' @keywords internal
 knit_print.histogram <- function(x, options = list(), ...) {
+  # Only suppress while MAIDR interception is active; after maidr_off()
+  # the user expects the normal text representation back.
+  if (!is_maidr_enabled()) {
+    return(knitr::normal_print(x))
+  }
   # Return invisible empty output to suppress printing
   invisible(knitr::asis_output(""))
 }
@@ -212,7 +233,27 @@ knit_print.histogram <- function(x, options = list(), ...) {
 #' @return An invisible empty string
 #' @keywords internal
 knit_print.density <- function(x, options = list(), ...) {
+  # Only suppress while MAIDR interception is active; after maidr_off()
+  # the user expects the normal text representation back.
+  if (!is_maidr_enabled()) {
+    return(knitr::normal_print(x))
+  }
   invisible(knitr::asis_output(""))
+}
+
+#' Print a ggplot with the original (non-MAIDR) print method
+#'
+#' @param x A ggplot object
+#' @return NULL (invisible)
+#' @keywords internal
+print_ggplot_natively <- function(x) {
+  original_print <- .maidr_ggplot_state$original_print_ggplot
+  if (!is.null(original_print)) {
+    original_print(x)
+  } else {
+    print(x)
+  }
+  invisible(NULL)
 }
 
 #' Create MAIDR Widget for knitr (Internal)
@@ -265,14 +306,23 @@ create_maidr_widget_internal <- function(plot = NULL) {
 maidr_plot_hook <- function(x, options) {
   device_id <- grDevices::dev.cur()
 
+  # Honour maidr_off(): behave exactly like the original hook. Drop anything
+  # already recorded on this device first - otherwise calls captured before
+  # interception was disabled survive, and a later maidr_on() folds them into
+  # the next render as phantom layers.
+  if (!is_base_r_enabled()) {
+    clear_device_storage(device_id)
+    return(call_original_plot_hook(x, options))
+  }
+
   # Check if we have captured Base R calls
   if (has_device_calls(device_id)) {
     # Check output format - only use iframes for HTML output
     if (!is_html_output()) {
-      # For PDF/EPUB/LaTeX: use default knitr handling
-      # Clear storage but use standard image output
+      # For PDF/EPUB/LaTeX: use the ORIGINAL hook, not hook_plot_md -
+      # markdown image syntax inside a .tex document breaks the figure
       clear_device_storage(device_id)
-      return(knitr::hook_plot_md(x, options))
+      return(call_original_plot_hook(x, options))
     }
 
     # Create orchestrator ONCE and reuse it
@@ -294,23 +344,58 @@ maidr_plot_hook <- function(x, options) {
     clear_device_storage(device_id)
 
     # For supported MAIDR plots in HTML: use full iframe with MAIDR.js
-    iframe_html <- create_maidr_iframe(
-      svg_content = content,
-      width = "100%",
-      height = "450px"
-    )
+    iframe_html <- create_knitr_iframe(content)
 
     # Return as raw HTML
     return(iframe_html)
   }
 
   # Fall back to original plot hook if no Base R calls captured
+  call_original_plot_hook(x, options)
+}
+
+#' Wrap a chart in its iframe for a knitted document
+#'
+#' Online, the frame loads maidr.js from the CDN, and the document is given
+#' its own copy of the bundle ([maidr_page_bundle_dependency()]) for the frame
+#' to fall back on. The frame's document sits in a `srcdoc` attribute, where
+#' R Markdown's `self_contained` and Quarto's `embed-resources` cannot reach
+#' its `<script src>`; the copy is what they embed instead, once per document
+#' however many charts it has, so a self-contained document's charts work
+#' offline. Offline at render time, each frame carries the bundle inline, as
+#' before.
+#'
+#' @param content The chart's SVG content, from [create_maidr_html()]
+#' @return Character string of iframe HTML
+#' @keywords internal
+create_knitr_iframe <- function(content) {
+  use_cdn <- maidr_internet_available()
+  if (use_cdn) {
+    knitr::knit_meta_add(list(maidr_page_bundle_dependency()))
+  }
+
+  create_maidr_iframe(
+    svg_content = content,
+    width = "100%",
+    height = "450px",
+    use_cdn = use_cdn,
+    page_fallback = use_cdn
+  )
+}
+
+#' Delegate to the stored original knitr plot hook
+#'
+#' Falls back to knitr's markdown hook only when no original was stored.
+#'
+#' @param x The plot file path from knitr
+#' @param options Chunk options
+#' @return The hook's output
+#' @keywords internal
+call_original_plot_hook <- function(x, options) {
   original_hook <- .maidr_knitr_state$original_plot_hook
   if (!is.null(original_hook) && is.function(original_hook)) {
     return(original_hook(x, options))
   }
-
-  # Default: return standard image tag
   knitr::hook_plot_md(x, options)
 }
 
@@ -360,8 +445,8 @@ is_html_output <- function() {
 #' @return Character string of HTML with img tag
 #' @keywords internal
 create_inline_image <- function(plot = NULL, width = "100%", height = "auto") {
-  # Generate PNG image
-  img_data <- create_fallback_image(plot, format = "png")
+  # The format the caller configured through `maidr_set_fallback()`.
+  img_data <- create_fallback_image(plot, format = get_fallback_format())
 
   # Create simple inline image HTML
   img_html <- sprintf(

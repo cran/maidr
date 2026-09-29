@@ -4,288 +4,450 @@
 \alias{BaseRCandlestickLayerProcessor}
 \title{Base R Candlestick Layer Processor}
 \description{
-Base R Candlestick Layer Processor
-
-Base R Candlestick Layer Processor
-}
-\details{
 Processes Base R candlestick chart layers produced by
-`quantmod::chartSeries(x, type = "candlesticks")`.
+\code{quantmod::chartSeries(x, type = "candlesticks")}.
 
-Each xts row becomes a single navigable `CandlestickPoint` with
-`value`, `open`, `high`, `low`, `close`, computed `trend`
-(Bull / Bear / Neutral), `volatility` (high - low) and optional
-`volume` (when `quantmod::has.Vo()` is `TRUE`).
+Each xts row becomes a single navigable \code{CandlestickPoint} with
+\code{value}, \code{open}, \code{high}, \code{low}, \code{close}, computed \code{trend}
+(Bull / Bear / Neutral), \code{volatility} (high - low) and optional
+\code{volume} (when \code{quantmod::has.Vo()} is \code{TRUE}).
 
 Selectors are derived from the gridSVG export of the chartSeries
-grob (captured via `ggplotify::as.grob()`). chartSeries draws candle
-bodies via a single vectorized `rect()` call (each candle body is one
-SVG `<rect>` child of `graphics-plot-<N>-rect-*`) and upper/lower
-wicks via `segments()` calls (one SVG `<polyline>` per wick under
-`graphics-plot-<N>-segments-*`).
+grob (captured via \code{ggplotify::as.grob()}). chartSeries draws candle
+bodies via a single vectorized \code{rect()} call (each candle body is one
+SVG \verb{<rect>} child of \verb{graphics-plot-<N>-rect-*}) and upper/lower
+wicks via \code{segments()} calls (one SVG \verb{<polyline>} per wick under
+\verb{graphics-plot-<N>-segments-*}).
 }
 \keyword{internal}
 \section{Super class}{
-\code{\link[maidr:LayerProcessor]{maidr::LayerProcessor}} -> \code{BaseRCandlestickLayerProcessor}
+\code{\link[maidr:LayerProcessor]{LayerProcessor}} -> \code{BaseRCandlestickLayerProcessor}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-BaseRCandlestickLayerProcessor-process}{\code{BaseRCandlestickLayerProcessor$process()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-has_add_vo}{\code{BaseRCandlestickLayerProcessor$has_add_vo()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-build_volume_layer}{\code{BaseRCandlestickLayerProcessor$build_volume_layer()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-generate_volume_selectors}{\code{BaseRCandlestickLayerProcessor$generate_volume_selectors()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-extract_data}{\code{BaseRCandlestickLayerProcessor$extract_data()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-generate_selectors}{\code{BaseRCandlestickLayerProcessor$generate_selectors()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-extract_axis_titles}{\code{BaseRCandlestickLayerProcessor$extract_axis_titles()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-extract_main_title}{\code{BaseRCandlestickLayerProcessor$extract_main_title()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-format_x_values}{\code{BaseRCandlestickLayerProcessor$format_x_values()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-collect_grob_names}{\code{BaseRCandlestickLayerProcessor$collect_grob_names()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-sort_ids}{\code{BaseRCandlestickLayerProcessor$sort_ids()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-find_grob_by_name}{\code{BaseRCandlestickLayerProcessor$find_grob_by_name()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-grob_coord_count}{\code{BaseRCandlestickLayerProcessor$grob_coord_count()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-pick_largest_child_group}{\code{BaseRCandlestickLayerProcessor$pick_largest_child_group()}}
-\item \href{#method-BaseRCandlestickLayerProcessor-clone}{\code{BaseRCandlestickLayerProcessor$clone()}}
+  \itemize{
+    \item \href{#method-BaseRCandlestickLayerProcessor-process}{\code{BaseRCandlestickLayerProcessor$process()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-has_add_vo}{\code{BaseRCandlestickLayerProcessor$has_add_vo()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-build_volume_layer}{\code{BaseRCandlestickLayerProcessor$build_volume_layer()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-generate_volume_selectors}{\code{BaseRCandlestickLayerProcessor$generate_volume_selectors()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-extract_data}{\code{BaseRCandlestickLayerProcessor$extract_data()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-generate_selectors}{\code{BaseRCandlestickLayerProcessor$generate_selectors()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-extract_axis_titles}{\code{BaseRCandlestickLayerProcessor$extract_axis_titles()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-extract_main_title}{\code{BaseRCandlestickLayerProcessor$extract_main_title()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-format_x_values}{\code{BaseRCandlestickLayerProcessor$format_x_values()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-collect_grob_names}{\code{BaseRCandlestickLayerProcessor$collect_grob_names()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-sort_ids}{\code{BaseRCandlestickLayerProcessor$sort_ids()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-find_grob_by_name}{\code{BaseRCandlestickLayerProcessor$find_grob_by_name()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-grob_coord_count}{\code{BaseRCandlestickLayerProcessor$grob_coord_count()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-pick_largest_child_group}{\code{BaseRCandlestickLayerProcessor$pick_largest_child_group()}}
+    \item \href{#method-BaseRCandlestickLayerProcessor-clone}{\code{BaseRCandlestickLayerProcessor$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="apply_scale_mapping"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-apply_scale_mapping'><code>maidr::LayerProcessor$apply_scale_mapping()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>maidr::LayerProcessor$augment_plot()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>maidr::LayerProcessor$extract_layer_axes()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>maidr::LayerProcessor$get_last_result()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>maidr::LayerProcessor$get_layer_index()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>maidr::LayerProcessor$initialize()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>maidr::LayerProcessor$needs_augmentation()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_reordering"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_reordering'><code>maidr::LayerProcessor$needs_reordering()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>maidr::LayerProcessor$reorder_layer_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>maidr::LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>LayerProcessor$augment_plot()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>LayerProcessor$extract_layer_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_grob_tree"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_grob_tree'><code>LayerProcessor$find_layer_grob_tree()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_polyline_grob"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_polyline_grob'><code>LayerProcessor$find_layer_polyline_grob()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>LayerProcessor$get_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_built_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_built_data'><code>LayerProcessor$get_layer_built_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>LayerProcessor$get_layer_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_own_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_own_layer'><code>LayerProcessor$get_own_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>LayerProcessor$initialize()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_flipped_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_flipped_layer'><code>LayerProcessor$is_flipped_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_horizontal_call"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_horizontal_call'><code>LayerProcessor$is_horizontal_call()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="layer_polyline_grobs"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-layer_polyline_grobs'><code>LayerProcessor$layer_polyline_grobs()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>LayerProcessor$needs_augmentation()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_reordering"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_reordering'><code>LayerProcessor$needs_reordering()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="other_geom_grob_prefixes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-other_geom_grob_prefixes'><code>LayerProcessor$other_geom_grob_prefixes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>LayerProcessor$reorder_layer_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="resolve_panel_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-resolve_panel_index'><code>LayerProcessor$resolve_panel_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="swap_point_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-swap_point_axes'><code>LayerProcessor$swap_point_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_columns"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_columns'><code>LayerProcessor$unflip_columns()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_panel_params"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_panel_params'><code>LayerProcessor$unflip_panel_params()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$process(
+\subsection{\code{BaseRCandlestickLayerProcessor$process()}}{
+  Process the layer: the candlestick layer, plus a volume bar layer when
+\code{addVo()} was requested
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$process(
   plot,
   layout,
   built = NULL,
   gt = NULL,
   layer_info = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{Unused; present for the processor interface}
+      \item{\code{layout}}{Unused; present for the processor interface}
+      \item{\code{built}}{Unused; present for the processor interface}
+      \item{\code{gt}}{Gtable of the replayed drawing, searched for selectors (optional)}
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A candlestick layer, or a multi-layer list with the volume bars
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-has_add_vo"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-has_add_vo}{}}}
-\subsection{Method \code{has_add_vo()}}{
-Detect whether the chartSeries call requests addVo()
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$has_add_vo(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$has_add_vo()}}{
+  Detect whether the chartSeries call draws the addVo()
+volume panel, which it does by default
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$has_add_vo(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-build_volume_layer"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-build_volume_layer}{}}}
-\subsection{Method \code{build_volume_layer()}}{
-Build a "bar" layer carrying volume data
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$build_volume_layer(layer_info, gt, candle_data)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$build_volume_layer()}}{
+  Build a "bar" layer carrying volume data
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$build_volume_layer(layer_info, gt, candle_data)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+      \item{\code{gt}}{Gtable of the replayed drawing (optional)}
+      \item{\code{candle_data}}{The candlestick data already extracted}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-generate_volume_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-generate_volume_selectors}{}}}
-\subsection{Method \code{generate_volume_selectors()}}{
-Generate selectors for the addVo() volume bar panel
+\subsection{\code{BaseRCandlestickLayerProcessor$generate_volume_selectors()}}{
+  Generate selectors for the addVo() volume bar panel
 
 chartSeries(TA = "addVo()") creates a second plotting window. In
-the gridSVG export that maps to a second `graphics-plot-<N>` group
+the gridSVG export that maps to a second \verb{graphics-plot-<N>} group
 (typically N = 2). Returns a per-bar selector list so each volume
 bar can be individually highlighted on navigation; matches the
 bar layer contract used by the Base R barplot processor.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$generate_volume_selectors(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$generate_volume_selectors(
   layer_info,
   gt,
   n_bars
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+      \item{\code{gt}}{Gtable of the replayed drawing (optional)}
+      \item{\code{n_bars}}{Number of volume bars}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors, one per volume bar
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-Extract OHLC data points from the chartSeries call
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$extract_data(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$extract_data()}}{
+  Extract OHLC data points from the chartSeries call
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$extract_data(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer info containing the recorded plot call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of CandlestickPoint dicts
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_info}}{Layer info containing the recorded plot call}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of CandlestickPoint dicts
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-Generate CSS selectors for the candlestick layer
+\subsection{\code{BaseRCandlestickLayerProcessor$generate_selectors()}}{
+  Generate CSS selectors for the candlestick layer
 
-Returns ONE `CandlestickSelector` object (matching the maidr JS
-frontend contract in `src/model/candlestick.ts::mapToSvgElements`).
+Returns ONE \code{CandlestickSelector} object (matching the maidr JS
+frontend contract in \code{src/model/candlestick.ts::mapToSvgElements}).
 The returned object has these named character-vector keys:
-  - `body`     length-N vector, one per-candle body-rect selector
-  - `wickHigh` length-N vector, one per-candle upper-wick selector
-               (omitted if only one segments group is present)
-  - `wickLow`  length-N vector, one per-candle lower-wick selector
-               (omitted if only one segments group is present)
-  - `wick`     length-N vector, used as fallback when there is only
-               one segments group (the frontend falls back to
-               `wick` when `wickHigh` / `wickLow` are absent).
+\itemize{
+\item \code{body}     length-N vector, one per-candle body-rect selector
+\item \code{wickHigh} length-N vector, one per-candle upper-wick selector
+(omitted if only one segments group is present)
+\item \code{wickLow}  length-N vector, one per-candle lower-wick selector
+(omitted if only one segments group is present)
+\item \code{wick}     length-N vector, used as fallback when there is only
+one segments group (the frontend falls back to
+\code{wick} when \code{wickHigh} / \code{wickLow} are absent).
+}
 
-gridSVG emits a child id `<group-id>.1.<i>` for each primitive in
+gridSVG emits a child id \verb{<group-id>.1.<i>} for each primitive in
 a vectorized draw call. The frontend iterates each string array
-(`collectElements(arr)`) and picks the i-th element via
-`getElementAt(*, i)`, so per-candle selectors are required for
+(\code{collectElements(arr)}) and picks the i-th element via
+\verb{getElementAt(*, i)}, so per-candle selectors are required for
 single-candle highlighting on arrow-key navigation.
 
 IMPORTANT: do NOT return an array of objects (e.g.
-`[[body, wick], ...]`). The frontend's `Array.isArray()` branch
-would then take `selectors[0]` (the first dict) and pass it to
-`querySelectorAll`, yielding a JS `SyntaxError: '[object Object]'
-is not a valid selector`. The boxplot pattern of per-item dicts
+\verb{[[body, wick], ...]}). The frontend's \code{Array.isArray()} branch
+would then take \code{selectors[0]} (the first dict) and pass it to
+\code{querySelectorAll}, yielding a JS \verb{SyntaxError: '[object Object]' is not a valid selector}. The boxplot pattern of per-item dicts
 does NOT apply here because each chart model has its own contract.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$generate_selectors(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$generate_selectors(
   layer_info,
   gt = NULL,
   extracted_data = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer info (used for fallback plot index)}
+      \item{\code{gt}}{The captured chartSeries grob (from ggplotify::as.grob)}
+      \item{\code{extracted_data}}{Previously extracted data (used for count)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Named list (single CandlestickSelector) or \code{list()} when
+grobs cannot be located.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_info}}{Layer info (used for fallback plot index)}
-
-\item{\code{gt}}{The captured chartSeries grob (from ggplotify::as.grob)}
-
-\item{\code{extracted_data}}{Previously extracted data (used for count)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Named list (single CandlestickSelector) or `list()` when
-  grobs cannot be located.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-extract_axis_titles"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-extract_axis_titles}{}}}
-\subsection{Method \code{extract_axis_titles()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$extract_axis_titles(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$extract_axis_titles()}}{
+  The axis titles, defaulting to Date and Price
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$extract_axis_titles(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Canonical axes list
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-extract_main_title"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-extract_main_title}{}}}
-\subsection{Method \code{extract_main_title()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$extract_main_title(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$extract_main_title()}}{
+  The main title of the recorded call, or an empty string
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$extract_main_title(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-format_x_values"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-format_x_values}{}}}
-\subsection{Method \code{format_x_values()}}{
-Format a vector of x-axis index values to character
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$format_x_values(idx)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$format_x_values()}}{
+  Format a vector of x-axis index values to character
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$format_x_values(idx)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{idx}}{Integer x-axis positions}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-collect_grob_names"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-collect_grob_names}{}}}
-\subsection{Method \code{collect_grob_names()}}{
-Recursively collect all grob names in a grob tree
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$collect_grob_names(g)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$collect_grob_names()}}{
+  Recursively collect all grob names in a grob tree
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$collect_grob_names(g)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{g}}{A grob}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of grob names
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-sort_ids"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-sort_ids}{}}}
-\subsection{Method \code{sort_ids()}}{
-Sort grob ids by trailing integer suffix
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$sort_ids(ids)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$sort_ids()}}{
+  Sort grob ids by trailing integer suffix
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$sort_ids(ids)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{ids}}{Grob ids}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The ids in numeric order of their suffix
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-find_grob_by_name"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-find_grob_by_name}{}}}
-\subsection{Method \code{find_grob_by_name()}}{
-Find the grob node whose name matches `id`
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$find_grob_by_name(g, id)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$find_grob_by_name()}}{
+  Find the grob node whose name matches \code{id}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$find_grob_by_name(g, id)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{g}}{A grob}
+      \item{\code{id}}{The grob name to find}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The grob, or NULL when no name matches
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-grob_coord_count"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-grob_coord_count}{}}}
-\subsection{Method \code{grob_coord_count()}}{
-Count the number of primitive coordinates a grob carries
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$grob_coord_count(g)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$grob_coord_count()}}{
+  Count the number of primitive coordinates a grob carries
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$grob_coord_count(g)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{g}}{A grob}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-pick_largest_child_group"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-pick_largest_child_group}{}}}
-\subsection{Method \code{pick_largest_child_group()}}{
-Pick the rect-id whose grob has the most coordinates
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$pick_largest_child_group(gt, ids)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$pick_largest_child_group()}}{
+  Pick the rect-id whose grob has the most coordinates
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$pick_largest_child_group(gt, ids)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{gt}}{Gtable of the replayed drawing (optional)}
+      \item{\code{ids}}{Grob ids}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRCandlestickLayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRCandlestickLayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRCandlestickLayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRCandlestickLayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRCandlestickLayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

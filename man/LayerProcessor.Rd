@@ -4,335 +4,701 @@
 \alias{LayerProcessor}
 \title{Abstract Layer Processor Interface}
 \description{
-Abstract Layer Processor Interface
-
-Abstract Layer Processor Interface
-}
-\details{
 This is the abstract base class for all layer processors. It defines the
 interface that all layer processors must implement.
 }
 \keyword{internal}
 \section{Public fields}{
-\if{html}{\out{<div class="r6-fields">}}
-\describe{
-\item{\code{layer_info}}{Information about the layer}
-
-\item{\code{layer_info}}{Information about the layer}
-}
-\if{html}{\out{</div>}}
+  \if{html}{\out{<div class="r6-fields">}}
+  \describe{
+    \item{\code{layer_info}}{Information about the layer}
+  }
+  \if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-LayerProcessor-new}{\code{LayerProcessor$new()}}
-\item \href{#method-LayerProcessor-process}{\code{LayerProcessor$process()}}
-\item \href{#method-LayerProcessor-extract_data}{\code{LayerProcessor$extract_data()}}
-\item \href{#method-LayerProcessor-generate_selectors}{\code{LayerProcessor$generate_selectors()}}
-\item \href{#method-LayerProcessor-needs_reordering}{\code{LayerProcessor$needs_reordering()}}
-\item \href{#method-LayerProcessor-reorder_layer_data}{\code{LayerProcessor$reorder_layer_data()}}
-\item \href{#method-LayerProcessor-augment_plot}{\code{LayerProcessor$augment_plot()}}
-\item \href{#method-LayerProcessor-needs_augmentation}{\code{LayerProcessor$needs_augmentation()}}
-\item \href{#method-LayerProcessor-get_layer_index}{\code{LayerProcessor$get_layer_index()}}
-\item \href{#method-LayerProcessor-set_last_result}{\code{LayerProcessor$set_last_result()}}
-\item \href{#method-LayerProcessor-get_last_result}{\code{LayerProcessor$get_last_result()}}
-\item \href{#method-LayerProcessor-extract_layer_axes}{\code{LayerProcessor$extract_layer_axes()}}
-\item \href{#method-LayerProcessor-apply_scale_mapping}{\code{LayerProcessor$apply_scale_mapping()}}
-\item \href{#method-LayerProcessor-clone}{\code{LayerProcessor$clone()}}
-}
+  \itemize{
+    \item \href{#method-LayerProcessor-initialize}{\code{LayerProcessor$new()}}
+    \item \href{#method-LayerProcessor-process}{\code{LayerProcessor$process()}}
+    \item \href{#method-LayerProcessor-extract_data}{\code{LayerProcessor$extract_data()}}
+    \item \href{#method-LayerProcessor-generate_selectors}{\code{LayerProcessor$generate_selectors()}}
+    \item \href{#method-LayerProcessor-get_layer_built_data}{\code{LayerProcessor$get_layer_built_data()}}
+    \item \href{#method-LayerProcessor-resolve_panel_index}{\code{LayerProcessor$resolve_panel_index()}}
+    \item \href{#method-LayerProcessor-get_own_layer}{\code{LayerProcessor$get_own_layer()}}
+    \item \href{#method-LayerProcessor-find_layer_grob_tree}{\code{LayerProcessor$find_layer_grob_tree()}}
+    \item \href{#method-LayerProcessor-find_layer_polyline_grob}{\code{LayerProcessor$find_layer_polyline_grob()}}
+    \item \href{#method-LayerProcessor-layer_polyline_grobs}{\code{LayerProcessor$layer_polyline_grobs()}}
+    \item \href{#method-LayerProcessor-other_geom_grob_prefixes}{\code{LayerProcessor$other_geom_grob_prefixes()}}
+    \item \href{#method-LayerProcessor-needs_reordering}{\code{LayerProcessor$needs_reordering()}}
+    \item \href{#method-LayerProcessor-reorder_layer_data}{\code{LayerProcessor$reorder_layer_data()}}
+    \item \href{#method-LayerProcessor-augment_plot}{\code{LayerProcessor$augment_plot()}}
+    \item \href{#method-LayerProcessor-needs_augmentation}{\code{LayerProcessor$needs_augmentation()}}
+    \item \href{#method-LayerProcessor-get_layer_index}{\code{LayerProcessor$get_layer_index()}}
+    \item \href{#method-LayerProcessor-is_flipped_layer}{\code{LayerProcessor$is_flipped_layer()}}
+    \item \href{#method-LayerProcessor-unflip_columns}{\code{LayerProcessor$unflip_columns()}}
+    \item \href{#method-LayerProcessor-is_horizontal_call}{\code{LayerProcessor$is_horizontal_call()}}
+    \item \href{#method-LayerProcessor-unflip_panel_params}{\code{LayerProcessor$unflip_panel_params()}}
+    \item \href{#method-LayerProcessor-swap_point_axes}{\code{LayerProcessor$swap_point_axes()}}
+    \item \href{#method-LayerProcessor-set_last_result}{\code{LayerProcessor$set_last_result()}}
+    \item \href{#method-LayerProcessor-get_last_result}{\code{LayerProcessor$get_last_result()}}
+    \item \href{#method-LayerProcessor-extract_layer_axes}{\code{LayerProcessor$extract_layer_axes()}}
+    \item \href{#method-LayerProcessor-clone}{\code{LayerProcessor$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-LayerProcessor-new"></a>}}
-\if{latex}{\out{\hypertarget{method-LayerProcessor-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize the layer processor
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$new(layer_info)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-LayerProcessor-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-initialize}{}}}
+\subsection{\code{LayerProcessor$new()}}{
+  Initialize the layer processor
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$new(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Information about the layer}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_info}}{Information about the layer}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-Process the layer (MUST be implemented by subclasses)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$process(
+\subsection{\code{LayerProcessor$process()}}{
+  Process the layer (MUST be implemented by subclasses)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$process(
   plot,
   layout,
   built = NULL,
   gt = NULL,
-  scale_mapping = NULL,
   grob_id = NULL,
   panel_ctx = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{layout}}{Layout information}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{gt}}{Gtable object (optional)}
+      \item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+      \item{\code{panel_ctx}}{Panel context for panel-scoped selector generation (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with data and selectors
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-
-\item{\code{layout}}{Layout information}
-
-\item{\code{built}}{Built plot data (optional)}
-
-\item{\code{gt}}{Gtable object (optional)}
-
-\item{\code{scale_mapping}}{Scale mapping for faceted plots (optional)}
-
-\item{\code{grob_id}}{Grob ID for faceted plots (optional)}
-
-\item{\code{panel_ctx}}{Panel context for panel-scoped selector generation (optional)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with data and selectors
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-Extract data from the layer (MUST be implemented by subclasses)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$extract_data(plot, built = NULL, scale_mapping = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$extract_data()}}{
+  Extract data from the layer (MUST be implemented by subclasses)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$extract_data(plot, built = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Extracted data
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-
-\item{\code{built}}{Built plot data (optional)}
-
-\item{\code{scale_mapping}}{Scale mapping for faceted plots (optional)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Extracted data
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-Generate selectors for the layer (MUST be implemented by subclasses)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$generate_selectors(
+\subsection{\code{LayerProcessor$generate_selectors()}}{
+  Generate selectors for the layer (MUST be implemented by subclasses)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$generate_selectors(
   plot,
   gt = NULL,
   grob_id = NULL,
   panel_ctx = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{gt}}{Gtable object (optional)}
+      \item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+      \item{\code{panel_ctx}}{Panel context for panel-scoped selector generation (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-get_layer_built_data"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-get_layer_built_data}{}}}
+\subsection{\code{LayerProcessor$get_layer_built_data()}}{
+  Read this layer's rows out of the built plot.
 
-\item{\code{gt}}{Gtable object (optional)}
+Scoped to one panel when asked. A faceted plot puts every panel's rows
+in one frame, so a layer that took all of them would describe the whole
+facet grid as one series.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$get_layer_built_data(built, panel_id = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A data frame of computed aesthetics, or NULL
+  }
+}
 
-\item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-resolve_panel_index"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-resolve_panel_index}{}}}
+\subsection{\code{LayerProcessor$resolve_panel_index()}}{
+  Resolve which entry of \code{built$layout$panel_params}
+describes a facet panel.
 
-\item{\code{panel_ctx}}{Panel context for panel-scoped selector generation (optional)}
+Panel parameters are stored in the row order of
+\code{built$layout$layout}, so panel \code{n} is entry \code{n}. An
+unfaceted plot (or an unusable id) resolves to the only panel there is.
+
+Shared: the line processor asked this first and the gantt processor
+asks it to name its lanes, and two readings disagreeing about which
+panel they are describing is not a difference worth having.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$resolve_panel_index(built, panel_id = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_id}}{Panel id for faceted plots (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer index guaranteed to be in range
+  }
 }
-\if{html}{\out{</div>}}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-get_own_layer"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-get_own_layer}{}}}
+\subsection{\code{LayerProcessor$get_own_layer()}}{
+  Resolve the plot layer this processor was built for.
+
+Every processor knows its index and several need the layer itself --
+for its geom, its position or its own \code{data} -- so the lookup lives
+here rather than being copied into each. Answers NULL rather than
+erroring when the index does not resolve, since a caller that cannot
+find its layer has a reading to fall back on and no crash to justify.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$get_own_layer(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The layer, or NULL when the index does not resolve
+  }
 }
-\subsection{Returns}{
-List of selectors
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-find_layer_grob_tree"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-find_layer_grob_tree}{}}}
+\subsection{\code{LayerProcessor$find_layer_grob_tree()}}{
+  Find the grob tree ggplot2 drew for this layer.
+
+ggplot2 names a layer's grob after its geom
+(\code{geom_smooth.gTree.5}), so the tree is located by that prefix
+and, when the plot repeats the geom, by this layer's position among
+the layers sharing it. Scoping to the layer's own tree is what keeps a
+sibling layer's grobs out of whatever the caller counts inside it.
+
+Lives here rather than on one processor because two now need it and
+the walk is the same walk -- the argument that moved
+\code{get_own_layer()} and \code{get_layer_built_data()} here before
+it. What differs between callers is only which layer they are looking
+for, and that is the \code{target} argument; the smooth processor
+passes a resolved index because it may describe a layer other than its
+own, and everything else takes the default.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$find_layer_grob_tree(plot, gt, panel_ctx = NULL, target = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{gt}}{Gtable object}
+      \item{\code{panel_ctx}}{Panel context for panel-scoped selector generation}
+      \item{\code{target}}{Index of the layer to find; defaults to this one's}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The matching grob, or NULL
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-find_layer_polyline_grob"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-find_layer_polyline_grob}{}}}
+\subsection{\code{LayerProcessor$find_layer_polyline_grob()}}{
+  The polyline grob ggplot2 drew for THIS layer.
+
+Shared rather than owned by the line processor: \code{GeomPath}, \code{GeomStep}
+and \code{GeomContour} all draw through a bare \code{polylineGrob} and so all
+land in the same auto-named candidate list, which is exactly why one
+answer to "which of them is mine" has to serve all three.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$find_layer_polyline_grob(plot, panel_grob, target = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{panel_grob}}{The panel's grob tree}
+      \item{\code{target}}{Index of the layer to find; defaults to this one's}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The matching grob, or NULL
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-layer_polyline_grobs"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-layer_polyline_grobs}{}}}
+\subsection{\code{LayerProcessor$layer_polyline_grobs()}}{
+  Panel polylines that a line layer could have drawn.
+
+\code{GeomPath$draw_panel()} returns a bare \code{polylineGrob}, so a
+line layer's grob carries grid's auto-generated
+\code{GRID.polyline.N} name with no geom prefix to match on -- only
+its draw-order position identifies it. Layers that DO name their grob
+tree after their geom (\code{geom_smooth.gTree.N}) are skipped whole
+via \code{geom_grob_prefix()}, the same helper the smooth processor
+uses to scope itself to its own tree; without that, the smooth's
+three curves are counted as line-layer polylines and shift every
+position by three. Panel grid lines are named after the theme element
+(\code{panel.grid.major.x..polyline.N}) and so never match.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$layer_polyline_grobs(plot, panel_grob, target = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{panel_grob}}{The panel's grob tree}
+      \item{\code{target}}{Index of the layer whose polylines are wanted}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of grobs in draw order
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-other_geom_grob_prefixes"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-other_geom_grob_prefixes}{}}}
+\subsection{\code{LayerProcessor$other_geom_grob_prefixes()}}{
+  Grob-name prefixes belonging to the plot's OTHER geoms.
+
+This layer's own prefix is excluded so that a second layer sharing
+the geom (two \code{geom_line()} calls) is still walked.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$other_geom_grob_prefixes(plot, target = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{target}}{Index of the layer whose prefix is the \emph{own} one}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of prefixes, possibly empty
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-needs_reordering"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-needs_reordering}{}}}
-\subsection{Method \code{needs_reordering()}}{
-Check if this layer needs reordering (OPTIONAL - default: FALSE)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$needs_reordering()}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$needs_reordering()}}{
+  Check if this layer needs reordering (OPTIONAL - default: FALSE)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$needs_reordering()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical indicating if reordering is needed
+  }
 }
 
-\subsection{Returns}{
-Logical indicating if reordering is needed
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-reorder_layer_data"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-reorder_layer_data}{}}}
-\subsection{Method \code{reorder_layer_data()}}{
-Reorder layer data (OPTIONAL - default: no-op)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$reorder_layer_data(data, plot)}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$reorder_layer_data()}}{
+  Reorder layer data (OPTIONAL - default: no-op)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$reorder_layer_data(data, plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{data}}{data.frame effective for this layer}
+      \item{\code{plot}}{full ggplot object (for mappings)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Reordered data
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{data}}{data.frame effective for this layer}
-
-\item{\code{plot}}{full ggplot object (for mappings)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Reordered data
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-augment_plot"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-augment_plot}{}}}
-\subsection{Method \code{augment_plot()}}{
-Augment the plot before building (OPTIONAL - default: no-op)
+\subsection{\code{LayerProcessor$augment_plot()}}{
+  Augment the plot before building (OPTIONAL - default: no-op)
 
 Called by the orchestrator before ggplot_build/ggplotGrob. Allows a
 processor to inject additional geom layers (e.g., a boxplot inside a
 violin) so they appear in the SVG and can be targeted by selectors.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$augment_plot(plot)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$augment_plot(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object to augment}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The (possibly augmented) ggplot2 object
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object to augment}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-The (possibly augmented) ggplot2 object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-needs_augmentation"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-needs_augmentation}{}}}
-\subsection{Method \code{needs_augmentation()}}{
-Check if this processor needs to augment the plot
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$needs_augmentation()}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$needs_augmentation()}}{
+  Check if this processor needs to augment the plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$needs_augmentation()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical
+  }
 }
 
-\subsection{Returns}{
-Logical
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-get_layer_index"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-get_layer_index}{}}}
-\subsection{Method \code{get_layer_index()}}{
-Get layer index
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$get_layer_index()}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$get_layer_index()}}{
+  Get layer index
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$get_layer_index()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Layer index
+  }
 }
 
-\subsection{Returns}{
-Layer index
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-is_flipped_layer"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-is_flipped_layer}{}}}
+\subsection{\code{LayerProcessor$is_flipped_layer()}}{
+  Is this layer drawn with its category axis running up \code{y}?
+
+\code{ggplot(df, aes(y = g, x = n)) + geom_col()} is the ordinary spelling of
+a horizontal bar chart. \code{ggplot_build()} marks such a layer
+\code{flipped_aes} and swaps which computed column holds what, so a
+processor that reads \code{x} as the category and \code{y} as the measure picks up
+exactly the wrong pair unless it asks first (#162, #184, #186).
+
+Lives here rather than on one processor because three of them need the
+same answer, and because a processor that never asks it goes wrong
+silently: both columns hold plausible values.
+
+\code{coord_flip()} is a different thing and answers \code{FALSE} here. It
+rotates the coordinate system and leaves \code{flipped_aes} alone, so the
+data layout is genuinely unflipped.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$is_flipped_layer(built = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{A \code{ggplot_build()} result, or \code{NULL} when the caller has
+none -- in which case the layer is treated as unflipped, since there
+is nothing to read the flag from.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    \code{TRUE} when the category runs up the y axis.
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-unflip_columns"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-unflip_columns}{}}}
+\subsection{\code{LayerProcessor$unflip_columns()}}{
+  Exchange a built layer's paired x and y columns
+
+Swapping the pairs up front lets every branch downstream stay written
+against one arrangement rather than each learning to ask which way round
+it is -- and a branch that forgot to ask would go wrong silently, since
+both columns hold plausible numbers.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$unflip_columns(built_data)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built_data}}{One layer's built data.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The same frame with its x and y pairs exchanged.
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-is_horizontal_call"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-is_horizontal_call}{}}}
+\subsection{\code{LayerProcessor$is_horizontal_call()}}{
+  Was this base R call drawn with \code{horiz = TRUE}?
+
+The base R counterpart of \code{is_flipped_layer()}: \code{barplot()} takes
+the orientation as an argument rather than marking the built layer, so
+the answer is read back off the captured call.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$is_horizontal_call(layer_info = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{The captured layer information, or \code{NULL}.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    \code{TRUE} when the bars run across the page.
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-unflip_panel_params"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-unflip_panel_params}{}}}
+\subsection{\code{LayerProcessor$unflip_panel_params()}}{
+  Exchange a panel's x and y scales
+
+So the break labels a processor reads come from the axis the categories
+are actually drawn on. Both the scale objects and the flattened
+\code{x.labels}/\code{y.labels} of older ggplot2 are swapped, since readers fall
+back from one to the other.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$unflip_panel_params(panel_params)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{panel_params}}{One entry of \code{built$layout$panel_params}.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The same list with its x and y entries exchanged.
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LayerProcessor-swap_point_axes"></a>}}
+\if{latex}{\out{\hypertarget{method-LayerProcessor-swap_point_axes}{}}}
+\subsection{\code{LayerProcessor$swap_point_axes()}}{
+  Put a horizontal layer's category and measure in the fields
+the bar grammar reads them from.
+
+Processors emit \verb{x = category, y = measure}, which is the vertical
+arrangement. A horizontal bar is read the other way round: MAIDR takes
+\code{x} as the magnitude and \code{y} as the category when \code{orientation} is
+\code{"horz"}, so the pair has to be exchanged on the way out. Left
+unexchanged, the core looks for a number and finds a category name --
+no magnitude to pitch, and an announcement that pairs the category axis
+with the measure and the measure axis with the category name (#184).
+
+Only the bar family wants this, which is why it is a step a processor
+opts into rather than something the orchestrator applies to every
+horizontal layer. An error bar keeps its category in \code{x} at both
+orientations and lets \code{orientation} swap only which axis labels the
+reading is announced against; a box carries quantiles and has no axis
+assignment to exchange at all.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$swap_point_axes(data_points)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{data_points}}{Points in \verb{x = category, y = measure} form. A nested
+list -- one series per element, as a grouped bar layer emits -- is
+handled as well as a flat one.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The same points with \code{x} and \code{y} exchanged.
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-set_last_result"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-set_last_result}{}}}
-\subsection{Method \code{set_last_result()}}{
-Store the last processed result (used by orchestrator)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$set_last_result(result)}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$set_last_result()}}{
+  Store the last processed result (used by orchestrator)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$set_last_result(result)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{result}}{The result to store}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{result}}{The result to store}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-get_last_result"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-get_last_result}{}}}
-\subsection{Method \code{get_last_result()}}{
-Get the last processed result
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$get_last_result()}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$get_last_result()}}{
+  Get the last processed result
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$get_last_result()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The last result
+  }
 }
 
-\subsection{Returns}{
-The last result
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-extract_layer_axes"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-extract_layer_axes}{}}}
-\subsection{Method \code{extract_layer_axes()}}{
-Extract axes labels for this specific layer
+\subsection{\code{LayerProcessor$extract_layer_axes()}}{
+  Extract axes labels for this specific layer
 
 Returns axes in the canonical per-axis object schema:
 \code{list(x = list(label = "..."), y = list(label = "..."))}.
 
 Bare strings, top-level \code{format}/\code{min}/\code{max}/\code{tickStep}/
 \code{fill}/\code{level}, and any non-\{x,y,z\} keys are NOT permitted.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$extract_layer_axes(plot, layout)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$extract_layer_axes(plot, layout)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot object}
+      \item{\code{layout}}{Global layout with fallback axes}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Named list with \code{x} and \code{y} AxisConfig objects
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot object}
-
-\item{\code{layout}}{Global layout with fallback axes}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Named list with \code{x} and \code{y} AxisConfig objects
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-LayerProcessor-apply_scale_mapping"></a>}}
-\if{latex}{\out{\hypertarget{method-LayerProcessor-apply_scale_mapping}{}}}
-\subsection{Method \code{apply_scale_mapping()}}{
-Apply scale mapping to numeric values
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$apply_scale_mapping(numeric_values, scale_mapping)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{numeric_values}}{Vector of numeric values}
-
-\item{\code{scale_mapping}}{Scale mapping vector}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Mapped values
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-LayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{LayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{LayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

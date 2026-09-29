@@ -59,6 +59,26 @@ knitr::opts_chunk$set(
 # # after creating the plot
 # show()
 
+## ----htmlwidget-examples------------------------------------------------------
+# library(maidr)
+# 
+# # plotly, including ggplotly()
+# plotly::plot_ly(mtcars, x = ~wt, y = ~mpg, type = "scatter", mode = "markers") |>
+#   maidr_htmlwidget()
+# 
+# # highcharter
+# highcharter::hchart(mtcars, "scatter", highcharter::hcaes(wt, mpg)) |>
+#   maidr_htmlwidget()
+# 
+# # echarts4r
+# mtcars |>
+#   echarts4r::e_charts(wt) |>
+#   echarts4r::e_scatter(mpg) |>
+#   maidr_htmlwidget()
+# 
+# # In Shiny, wrap the widget inside its own render function
+# # output$chart <- plotly::renderPlotly(maidr_htmlwidget(plotly::plot_ly(...)))
+
 ## ----use-cdn-example----------------------------------------------------------
 # library(maidr)
 # library(ggplot2)
@@ -66,20 +86,39 @@ knitr::opts_chunk$set(
 # p <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
 #   geom_bar(stat = "identity")
 # 
-# # Auto-detect (default) - uses CDN if internet available
+# # Default - bundled files, works offline
 # show(p)
 # 
-# # Force CDN (requires internet when viewing)
+# # Force CDN (requires internet when viewing; loads the latest MAIDR.js)
 # show(p, use_cdn = TRUE)
 # 
 # # Force bundled/local files (works offline)
 # show(p, use_cdn = FALSE)
 
 ## ----save-html-cdn------------------------------------------------------------
-# # Save with CDN links (smaller file, needs internet to view)
+# # One self-contained file; needs internet whenever it is viewed
 # save_html(p, "plot_cdn.html", use_cdn = TRUE)
 # 
-# # Save with bundled files (larger file, works offline)
+# # The file plus a lib/ folder beside it; works offline
+# save_html(p, "plot_offline.html", use_cdn = FALSE)
+
+## ----cdn-version--------------------------------------------------------------
+# # The version bundled with this package
+# options(maidr.cdn_version = "bundled")
+# 
+# # A particular release
+# options(maidr.cdn_version = "4.9.0")
+# 
+# # Back to the latest
+# options(maidr.cdn_version = NULL)
+
+## ----dotpad-sdk, eval = FALSE-------------------------------------------------
+# options(
+#   maidr.dotpad_sdk_url = "https://intranet.example/dotpad/DotPadSDK-3.0.3.js",
+#   # Only if the braille engine (liblouis) is not in lib/ beside the module
+#   maidr.dotpad_asset_base_url = "https://intranet.example/dotpad/lib/"
+# )
+# 
 # save_html(p, "plot_offline.html", use_cdn = FALSE)
 
 ## ----histogram-example--------------------------------------------------------

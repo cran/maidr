@@ -7,11 +7,21 @@ BaseRBarplotLayerProcessor <- R6::R6Class(
   "BaseRBarplotLayerProcessor",
   inherit = LayerProcessor,
   public = list(
+    #' @description Process the layer: read its data, selectors, axis titles and main title from
+    #'   the recorded call
+    #' @param plot Unused; present for the processor interface
+    #' @param layout Unused; present for the processor interface
+    #' @param built Unused; present for the processor interface
+    #' @param gt Gtable of the replayed drawing, searched for selectors (optional)
+    #' @param grob_id Unused; present for the processor interface
+    #' @param panel_id Unused; present for the processor interface
+    #' @param panel_ctx Unused; present for the processor interface
+    #' @param layer_info Layer information with the recorded call
+    #' @return List describing the layer for the MAIDR payload
     process = function(plot,
                        layout,
                        built = NULL,
                        gt = NULL,
-                       scale_mapping = NULL,
                        grob_id = NULL,
                        panel_id = NULL,
                        panel_ctx = NULL,
@@ -21,17 +31,38 @@ BaseRBarplotLayerProcessor <- R6::R6Class(
       axes <- self$extract_axis_titles(layer_info)
       title <- self$extract_main_title(layer_info)
 
-      list(
+      result <- list(
         data = data,
         selectors = selectors,
         type = "bar",
         title = title,
         axes = axes
       )
+
+      # barplot(horiz = TRUE): announce the value axis correctly and let
+      # the frontend swap navigation axes
+      if (self$is_horizontal(layer_info)) {
+        result$orientation <- "horz"
+      }
+
+      result
     },
+
+    #' @description Check whether this barplot call used horiz = TRUE
+    #' @param layer_info Layer information
+    #' @return Logical
+    is_horizontal = function(layer_info) {
+      self$is_horizontal_call(layer_info)
+    },
+    #' @description Whether the plot data must be reordered before drawing; a Base R layer is read
+    #'   from the recorded call and never is
+    #' @return FALSE
     needs_reordering = function() {
       FALSE # Base R bar plots don't need reordering like ggplot2
     },
+    #' @description One point per bar, read from the recorded `height`
+    #' @param layer_info Layer information with the recorded call
+    #' @return List of points
     extract_data = function(layer_info) {
       if (is.null(layer_info)) {
         return(list())
@@ -41,10 +72,7 @@ BaseRBarplotLayerProcessor <- R6::R6Class(
       args <- plot_call$args
 
       # Elegant extraction: Get height (primary argument)
-      height <- args$height
-      if (is.null(height) && length(args) > 0) {
-        height <- args[[1]] # First argument if height not named
-      }
+      height <- recorded_barplot_height(args)
 
       labels <- args$names.arg
       if (is.null(labels)) {
@@ -64,38 +92,53 @@ BaseRBarplotLayerProcessor <- R6::R6Class(
         # Ensure same length
         n <- min(length(height), length(labels))
 
-        data_df <- data.frame(
-          x = labels[1:n],
-          y = height[1:n],
-          stringsAsFactors = FALSE
-        )
-
-        sorted_indices <- order(data_df$x)
-        data_df <- data_df[sorted_indices, ]
-
-        for (i in seq_len(nrow(data_df))) {
-          data_points[[i]] <- list(
-            x = data_df$x[i],
-            y = data_df$y[i]
-          )
+        # Emit data in recorded-call order: the SVG is replayed from the
+        # recorded args, so its rects appear in exactly this order. Any
+        # re-sorting here (e.g. alphabetical) would misalign announced
+        # values and highlights with the drawn bars. (Named inputs are
+        # already sorted by the barplot wrapper's SortingPatcher before
+        # being recorded.)
+        #
+        # Horizontal bars swap the point roles: x carries the VALUE and
+        # y the category label (the frontend reads values from x when
+        # orientation = "horz").
+        horizontal <- self$is_horizontal(layer_info)
+        for (i in seq_len(n)) {
+          data_points[[i]] <- if (horizontal) {
+            list(
+              x = height[i],
+              y = labels[i]
+            )
+          } else {
+            list(
+              x = labels[i],
+              y = height[i]
+            )
+          }
         }
       }
 
       data_points
     },
+    #' @description Extract the axis titles for this layer
+    #'
+    #' `barplot()` writes no title of its own, so an author who wrote none
+    #' leaves both axes nameless. A bar chart always plots categories against
+    #' their measured heights, whether or not the heights arrived named, so
+    #' that is what the defaults say. `horiz = TRUE` puts the heights on the
+    #' visual x axis -- the same swap extract_data() applies to the points.
+    #'
+    #' @param layer_info Layer information
+    #' @return Canonical axes list
     extract_axis_titles = function(layer_info) {
-      if (is.null(layer_info)) {
-        return(build_axes(x = "", y = ""))
-      }
-
-      plot_call <- layer_info$plot_call
-      args <- plot_call$args
-
-      x_title <- if (!is.null(args$xlab)) args$xlab else ""
-      y_title <- if (!is.null(args$ylab)) args$ylab else ""
-
-      build_axes(x = x_title, y = y_title)
+      base_r_categorical_axes(
+        layer_info$plot_call$args,
+        horizontal = self$is_horizontal(layer_info)
+      )
     },
+    #' @description The main title of the recorded call, or an empty string
+    #' @param layer_info Layer information with the recorded call
+    #' @return Character string
     extract_main_title = function(layer_info) {
       if (is.null(layer_info)) {
         return("")
@@ -104,9 +147,13 @@ BaseRBarplotLayerProcessor <- R6::R6Class(
       plot_call <- layer_info$plot_call
       args <- plot_call$args
 
-      main_title <- if (!is.null(args$main)) args$main else ""
+      main_title <- recorded_main_title(args)
       main_title
     },
+    #' @description Generate the CSS selectors that address this layer's drawn elements
+    #' @param layer_info Layer information with the recorded call
+    #' @param gt Gtable of the replayed drawing (optional)
+    #' @return List of selectors
     generate_selectors = function(layer_info, gt = NULL) {
       # For Base R plots converted with ggplotify, we generate selectors
       # using the same recursive approach as ggplot2

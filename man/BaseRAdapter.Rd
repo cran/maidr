@@ -2,293 +2,448 @@
 % Please edit documentation in R/base_r_adapter.R
 \name{BaseRAdapter}
 \alias{BaseRAdapter}
-\title{Initialize the Base R adapter
-Check if this adapter can handle a plot object}
-\description{
-Initialize the Base R adapter
-Check if this adapter can handle a plot object
-
-Initialize the Base R adapter
-Check if this adapter can handle a plot object
+\title{Base R System Adapter}
+\format{
+An R6 class inheriting from SystemAdapter
 }
+\description{
+Adapter for the Base R plotting system. This adapter uses function patching
+to intercept Base R plotting calls and detect plot types.
+}
+\keyword{internal}
 \section{Super class}{
-\code{\link[maidr:SystemAdapter]{maidr::SystemAdapter}} -> \code{BaseRAdapter}
+\code{\link[maidr:SystemAdapter]{SystemAdapter}} -> \code{BaseRAdapter}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-BaseRAdapter-new}{\code{BaseRAdapter$new()}}
-\item \href{#method-BaseRAdapter-can_handle}{\code{BaseRAdapter$can_handle()}}
-\item \href{#method-BaseRAdapter-detect_layer_type}{\code{BaseRAdapter$detect_layer_type()}}
-\item \href{#method-BaseRAdapter-is_dodged_barplot}{\code{BaseRAdapter$is_dodged_barplot()}}
-\item \href{#method-BaseRAdapter-is_stacked_barplot}{\code{BaseRAdapter$is_stacked_barplot()}}
-\item \href{#method-BaseRAdapter-create_orchestrator}{\code{BaseRAdapter$create_orchestrator()}}
-\item \href{#method-BaseRAdapter-get_system_name}{\code{BaseRAdapter$get_system_name()}}
-\item \href{#method-BaseRAdapter-get_adapter}{\code{BaseRAdapter$get_adapter()}}
-\item \href{#method-BaseRAdapter-has_facets}{\code{BaseRAdapter$has_facets()}}
-\item \href{#method-BaseRAdapter-is_patchwork}{\code{BaseRAdapter$is_patchwork()}}
-\item \href{#method-BaseRAdapter-get_plot_calls}{\code{BaseRAdapter$get_plot_calls()}}
-\item \href{#method-BaseRAdapter-clear_plot_calls}{\code{BaseRAdapter$clear_plot_calls()}}
-\item \href{#method-BaseRAdapter-initialize_patching}{\code{BaseRAdapter$initialize_patching()}}
-\item \href{#method-BaseRAdapter-restore_functions}{\code{BaseRAdapter$restore_functions()}}
-\item \href{#method-BaseRAdapter-clone}{\code{BaseRAdapter$clone()}}
-}
+  \itemize{
+    \item \href{#method-BaseRAdapter-initialize}{\code{BaseRAdapter$new()}}
+    \item \href{#method-BaseRAdapter-formula_frame_missing}{\code{BaseRAdapter$formula_frame_missing()}}
+    \item \href{#method-BaseRAdapter-formula_call}{\code{BaseRAdapter$formula_call()}}
+    \item \href{#method-BaseRAdapter-formula_scatter_readable}{\code{BaseRAdapter$formula_scatter_readable()}}
+    \item \href{#method-BaseRAdapter-can_handle}{\code{BaseRAdapter$can_handle()}}
+    \item \href{#method-BaseRAdapter-detect_layer_type}{\code{BaseRAdapter$detect_layer_type()}}
+    \item \href{#method-BaseRAdapter-is_dodged_barplot}{\code{BaseRAdapter$is_dodged_barplot()}}
+    \item \href{#method-BaseRAdapter-is_stacked_barplot}{\code{BaseRAdapter$is_stacked_barplot()}}
+    \item \href{#method-BaseRAdapter-is_normalized_barplot}{\code{BaseRAdapter$is_normalized_barplot()}}
+    \item \href{#method-BaseRAdapter-create_orchestrator}{\code{BaseRAdapter$create_orchestrator()}}
+    \item \href{#method-BaseRAdapter-get_system_name}{\code{BaseRAdapter$get_system_name()}}
+    \item \href{#method-BaseRAdapter-get_adapter}{\code{BaseRAdapter$get_adapter()}}
+    \item \href{#method-BaseRAdapter-has_facets}{\code{BaseRAdapter$has_facets()}}
+    \item \href{#method-BaseRAdapter-is_patchwork}{\code{BaseRAdapter$is_patchwork()}}
+    \item \href{#method-BaseRAdapter-get_plot_calls}{\code{BaseRAdapter$get_plot_calls()}}
+    \item \href{#method-BaseRAdapter-clear_plot_calls}{\code{BaseRAdapter$clear_plot_calls()}}
+    \item \href{#method-BaseRAdapter-initialize_patching}{\code{BaseRAdapter$initialize_patching()}}
+    \item \href{#method-BaseRAdapter-restore_functions}{\code{BaseRAdapter$restore_functions()}}
+    \item \href{#method-BaseRAdapter-clone}{\code{BaseRAdapter$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-BaseRAdapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-BaseRAdapter-new}{}}}
-\subsection{Method \code{new()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$new()}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-BaseRAdapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRAdapter-initialize}{}}}
+\subsection{\code{BaseRAdapter$new()}}{
+  Initialize the Base R adapter
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$new()}
+    \if{html}{\out{</div>}}
+  }
 }
 
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRAdapter-formula_frame_missing"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRAdapter-formula_frame_missing}{}}}
+\subsection{\code{BaseRAdapter$formula_frame_missing()}}{
+  Was a formula call recorded without the frame it drew from?
+
+A formula reader takes its rows from the model frame kept at record
+time. When that frame could not be built -- a \code{subset} written as an
+expression with nothing to evaluate it in, a \code{data} that no longer
+resolves -- the reader has nothing to announce, and a claimed layer
+with nothing in it exports as an interactive chart that says nothing.
+Declining the type sends the chart to the picture instead.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$formula_frame_missing(layer)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The recorded call entry}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the call carries a formula but no frame
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRAdapter-formula_call"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRAdapter-formula_call}{}}}
+\subsection{\code{BaseRAdapter$formula_call()}}{
+  Was the call handed a formula?
+
+Either written in the call, or -- \verb{fmla <- y ~ x; plot(fmla)} --
+bound to a name the recorder resolved.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$formula_call(layer)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The recorded call entry}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the call carries a formula
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRAdapter-formula_scatter_readable"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRAdapter-formula_scatter_readable}{}}}
+\subsection{\code{BaseRAdapter$formula_scatter_readable()}}{
+  Does a recorded formula \code{plot()} draw a numeric scatter?
+
+\code{plot.formula()} draws a scatter only for a numeric response over one
+numeric predictor; a factor predictor reaches \code{plot.factor()} and a
+box plot, and a longer right-hand side is \code{plot.default()} over the
+first term. Only the two-column numeric frame is read as points.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$formula_scatter_readable(layer)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The recorded call entry}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the frame is a numeric pair
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-can_handle"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-can_handle}{}}}
-\subsection{Method \code{can_handle()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$can_handle(plot_object)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$can_handle()}}{
+  Check if this adapter can handle a plot object
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$can_handle(plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The plot object to check (should be NULL for Base R)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if Base R plotting is active, FALSE otherwise
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The plot object to check (should be NULL for Base R)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-TRUE if Base R plotting is active, FALSE otherwise
-Detect the type of a single layer from Base R plot calls
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-detect_layer_type"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-detect_layer_type}{}}}
-\subsection{Method \code{detect_layer_type()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$detect_layer_type(layer, plot_object = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$detect_layer_type()}}{
+  Detect the type of a single layer from Base R plot calls
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$detect_layer_type(layer, plot_object = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The plot call entry from our logger}
+      \item{\code{plot_object}}{The parent plot object (NULL for Base R)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    String indicating the layer type (e.g., "bar", "dodged_bar",
+"stacked_bar", "smooth", "line", "point")
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer}}{The plot call entry from our logger}
-
-\item{\code{plot_object}}{The parent plot object (NULL for Base R)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-String indicating the layer type (e.g., "bar", "dodged_bar",
-  "stacked_bar", "smooth", "line", "point")
-Check if a barplot call represents a dodged bar plot
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-is_dodged_barplot"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-is_dodged_barplot}{}}}
-\subsection{Method \code{is_dodged_barplot()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$is_dodged_barplot(args)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$is_dodged_barplot()}}{
+  Check if a barplot call represents a dodged bar plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$is_dodged_barplot(args)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{args}}{The arguments from the barplot call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if this is a dodged bar plot, FALSE otherwise
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{args}}{The arguments from the barplot call}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-TRUE if this is a dodged bar plot, FALSE otherwise
-Check if a barplot call represents a stacked bar plot
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-is_stacked_barplot"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-is_stacked_barplot}{}}}
-\subsection{Method \code{is_stacked_barplot()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$is_stacked_barplot(args)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$is_stacked_barplot()}}{
+  Check if a barplot call represents a stacked bar plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$is_stacked_barplot(args)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{args}}{The arguments from the barplot call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if this is a stacked bar plot, FALSE otherwise
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{args}}{The arguments from the barplot call}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRAdapter-is_normalized_barplot"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRAdapter-is_normalized_barplot}{}}}
+\subsection{\code{BaseRAdapter$is_normalized_barplot()}}{
+  Check if a barplot call draws a 100\% stacked bar
+
+Base R has no \code{position = "fill"} to read: \code{barplot()} takes no
+normalisation argument at all, and the idiomatic way to draw a 100\%
+stacked bar is to normalise the matrix first, as
+\code{barplot(prop.table(m, 2))}. The only signal left is the drawn geometry.
+
+So this reads what the chart shows rather than guessing what the author
+meant, and the two are the same thing here: when every column sums to 1,
+every bar is drawn to a common full height and each segment is that
+category's share. A chart like that IS a 100\% stacked bar whatever the
+numbers were before they reached \code{barplot()}.
+
+Deliberately narrow. It does not also accept columns summing to 100,
+because a matrix of raw counts can total 100 by coincidence and nothing
+about the drawing would distinguish that from percentages. And it needs
+two or more rows, because a single series stacked against nothing is not
+a stack.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$is_normalized_barplot(args)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{args}}{The arguments from the barplot call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if every column of the height matrix sums to 1
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-TRUE if this is a stacked bar plot, FALSE otherwise
-Create an orchestrator for this system (Base R)
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-create_orchestrator"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-create_orchestrator}{}}}
-\subsection{Method \code{create_orchestrator()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$create_orchestrator(plot_object = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$create_orchestrator()}}{
+  Create an orchestrator for this system (Base R)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$create_orchestrator(plot_object = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The plot object to process (NULL for Base R)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    PlotOrchestrator instance
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The plot object to process (NULL for Base R)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-PlotOrchestrator instance
-Get the system name
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-get_system_name"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-get_system_name}{}}}
-\subsection{Method \code{get_system_name()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$get_system_name()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$get_system_name()}}{
+  Get the system name
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$get_system_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    System name string
+  }
 }
 
-\subsection{Returns}{
-System name string
-Get a reference to this adapter (for use by orchestrator)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-get_adapter"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-get_adapter}{}}}
-\subsection{Method \code{get_adapter()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$get_adapter()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$get_adapter()}}{
+  Get a reference to this adapter (for use by orchestrator)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$get_adapter()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Self reference
+  }
 }
 
-\subsection{Returns}{
-Self reference
-Check if plot has facets (Base R doesn't support facets)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-has_facets"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-has_facets}{}}}
-\subsection{Method \code{has_facets()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$has_facets(plot_object = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$has_facets()}}{
+  Check if plot has facets (Base R doesn't support facets)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$has_facets(plot_object = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The plot object (ignored for Base R)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    FALSE (Base R doesn't support facets)
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The plot object (ignored for Base R)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-FALSE (Base R doesn't support facets)
-Check if plot is a patchwork plot (Base R doesn't support patchwork)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-is_patchwork"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-is_patchwork}{}}}
-\subsection{Method \code{is_patchwork()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$is_patchwork(plot_object = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$is_patchwork()}}{
+  Check if plot is a patchwork plot (Base R doesn't support patchwork)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$is_patchwork(plot_object = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The plot object (ignored for Base R)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    FALSE (Base R doesn't support patchwork)
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The plot object (ignored for Base R)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-FALSE (Base R doesn't support patchwork)
-Get recorded plot calls for processing
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-get_plot_calls"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-get_plot_calls}{}}}
-\subsection{Method \code{get_plot_calls()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$get_plot_calls(device_id = grDevices::dev.cur())}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$get_plot_calls()}}{
+  Get recorded plot calls for processing
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$get_plot_calls(device_id = grDevices::dev.cur())}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{device_id}}{Graphics device ID (defaults to current device)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of recorded plot calls
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{device_id}}{Graphics device ID (defaults to current device)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of recorded plot calls
-Clear recorded plot calls (for cleanup)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-clear_plot_calls"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-clear_plot_calls}{}}}
-\subsection{Method \code{clear_plot_calls()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$clear_plot_calls(device_id = grDevices::dev.cur())}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$clear_plot_calls()}}{
+  Clear recorded plot calls (for cleanup)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$clear_plot_calls(device_id = grDevices::dev.cur())}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{device_id}}{Graphics device ID (defaults to current device)}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{device_id}}{Graphics device ID (defaults to current device)
-Initialize function patching}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-initialize_patching"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-initialize_patching}{}}}
-\subsection{Method \code{initialize_patching()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$initialize_patching()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$initialize_patching()}}{
+  Initialize function patching
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$initialize_patching()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    NULL (invisible)
+  }
 }
 
-\subsection{Returns}{
-NULL (invisible)
-Restore original functions
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-restore_functions"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-restore_functions}{}}}
-\subsection{Method \code{restore_functions()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$restore_functions()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$restore_functions()}}{
+  Restore original functions
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$restore_functions()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    NULL (invisible)
+  }
 }
 
-\subsection{Returns}{
-NULL (invisible)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRAdapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRAdapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRAdapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRAdapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRAdapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

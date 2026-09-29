@@ -3,7 +3,8 @@
 \name{warn_chartseries_ta_unsupported}
 \alias{warn_chartseries_ta_unsupported}
 \title{Emit a one-time warning when quantmod::chartSeries() is called with a
-non-NULL `TA` argument (e.g. `TA = "addVo()"`).}
+technical-analysis indicator other than the volume panel (e.g.
+\code{TA = "addSMA()"}).}
 \usage{
 warn_chartseries_ta_unsupported()
 }
@@ -11,12 +12,10 @@ warn_chartseries_ta_unsupported()
 Invisibly NULL.
 }
 \description{
-The gridSVG export pipeline used to convert chartSeries' multi-panel
-base graphics output into an accessible HTML SVG mis-handles the volume
-sub-panel, producing rects with negative y coordinates that overlap the
-date-label band. Because gridSVG is unmaintained, maidr falls back to
-native (non-accessible) rendering for these calls and surfaces a
-one-time advisory pointing users to the ggplot2 + tidyquant + patchwork
-alternative which renders correctly via maidr's ggplot2 path.
+maidr reads the candlesticks and the volume panel \code{addVo()} draws, but
+no other indicator, so it falls back to native (non-accessible)
+rendering for these calls and surfaces a one-time advisory pointing
+users to the ggplot2 + tidyquant + patchwork alternative, which maidr's
+ggplot2 path reads in full.
 }
 \keyword{internal}

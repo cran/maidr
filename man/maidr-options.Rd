@@ -9,16 +9,55 @@ Configure MAIDR interception and display behavior using R's options system.
 \section{Available Options}{
 
 \describe{
-  \item{\code{maidr.auto_show}}{Logical. Master switch for all MAIDR interception.
-    When FALSE, all plotting functions behave as standard R. Default: TRUE.}
-  \item{\code{maidr.base_r}}{Logical. Enable Base R plot interception.
-    When TRUE, Base R plots are captured and displayed in the MAIDR viewer.
-    Default: TRUE.}
-  \item{\code{maidr.ggplot2}}{Logical. Enable ggplot2 auto-display.
-    When TRUE, ggplot2 objects are automatically rendered in the MAIDR viewer
-    instead of the standard graphics device. Default: TRUE.}
-  \item{\code{maidr.startup_message}}{Logical. Show startup message when
-    package is loaded. Default: TRUE.}
+\item{\code{maidr.auto_show}}{Logical. Master switch for all MAIDR interception.
+When FALSE, all plotting functions behave as standard R. Default: TRUE.}
+\item{\code{maidr.base_r}}{Logical. Enable Base R plot interception.
+When TRUE, Base R plots are captured and displayed in the MAIDR viewer.
+Default: TRUE.}
+\item{\code{maidr.ggplot2}}{Logical. Enable ggplot2 auto-display.
+When TRUE, ggplot2 objects are automatically rendered in the MAIDR viewer
+instead of the standard graphics device. Default: TRUE.}
+\item{\code{maidr.startup_message}}{Logical. Show startup message when
+package is loaded. Default: TRUE.}
+\item{\code{maidr.dotpad_sdk_url}}{Character. URL of a copy of the DotPad
+tactile-display SDK module (\code{DotPadSDK-3.0.3.js}) that you serve
+yourself. maidr.js does not bundle the SDK, whose braille engine is a
+14 MB liblouis build; unless told otherwise it imports the vendor's
+copy from jsDelivr the first time a DotPad is connected, from a
+document rendered with \code{use_cdn = FALSE} as much as any other.
+Set this to keep that path off the network too. Falls back to the
+environment variable \code{MAIDR_DOTPAD_SDK_URL}. Default: unset.}
+\item{\code{maidr.dotpad_asset_base_url}}{Character. URL of the directory
+holding the SDK's braille engine (\code{liblouis.js}, \code{.wasm},
+\code{.data}), needed only when it is not the \code{lib/} folder
+beside the module. Falls back to the environment variable
+\code{MAIDR_DOTPAD_ASSET_BASE_URL}. Default: unset.}
+\item{\code{maidr.dotpad_sdk_dir}}{Character. Directory where
+\code{\link{maidr_download_dotpad_sdk}()} writes the SDK and where
+\code{show()} and \code{save_html()} look for it when a document is
+rendered with \code{use_cdn = FALSE}. Falls back to the environment
+variable \code{MAIDR_DOTPAD_SDK_DIR}, then to a per-user cache
+directory. Default: unset.}
+\item{\code{maidr.cdn_version}}{Character. Which MAIDR.js the CDN paths
+load: a version such as \code{"4.9.0"} (a leading \code{v} is
+accepted), \code{"bundled"} for the version bundled with this package
+(\code{maidr:::MAIDR_VERSION}), or \code{"latest"} for jsDelivr's
+\code{@latest} tag. Either tag skips the version lookup described
+below. Anything else warns once and is ignored. Falls back to the
+environment variable \code{MAIDR_CDN_VERSION}. Default: unset, which
+loads the latest published version.}
+\item{\code{maidr.cdn_timeout}}{Numeric. Seconds allowed for the whole
+CDN version lookup, clamped to between 0.1 and 30. Falls back to the
+environment variable \code{MAIDR_CDN_TIMEOUT}. Default: 3.}
+\item{\code{maidr.locale_base_url}}{Character, or \code{FALSE}. Where
+maidr.js fetches a language other than English from, in the documents
+that load the bundled maidr.js (see the section on languages below):
+a directory URL to serve the locale packs yourself, or \code{""} or
+\code{FALSE} to declare nothing, which keeps such a document off the
+network and in English. A URL set here is declared in CDN documents
+too. Falls back to the environment variable
+\code{MAIDR_LOCALE_BASE_URL}. Default: unset, which declares the packs
+of the bundled version on jsDelivr.}
 }
 }
 
@@ -34,7 +73,93 @@ options(maidr.auto_show = FALSE)
 
 # Suppress startup message
 options(maidr.startup_message = FALSE)
+
+# Serve the DotPad SDK from your own server instead of jsDelivr
+options(
+  maidr.dotpad_sdk_url = "https://example.org/vendor/DotPadSDK-3.0.3.js",
+  maidr.dotpad_asset_base_url = "https://example.org/vendor/lib/"
+)
+
+# Serve MAIDR's language packs yourself, or never fetch one (English only)
+options(maidr.locale_base_url = "https://example.org/maidr/")
+options(maidr.locale_base_url = FALSE)
 }
 }
 
-\keyword{internal}
+\section{DotPad SDK and offline documents}{
+
+The two \code{maidr.dotpad_*_url} options are written into every document
+this package produces (\code{show()}, \code{save_html()}, the htmlwidget,
+knitr and Shiny) as the globals \code{window.MAIDR_DOTPAD_SDK_URL} and
+\code{window.MAIDR_DOTPAD_ASSET_BASE_URL}, ahead of \code{maidr.js}, which
+reads them when a DotPad is connected. Nothing is written when neither is
+set. Without them a DotPad needs network access to jsDelivr on first
+connect, even from a \code{use_cdn = FALSE} document; the rest of the
+document works offline either way.
+
+The other way to keep a DotPad off the network is to download the SDK
+once with \code{\link{maidr_download_dotpad_sdk}()}: \code{show()} and
+\code{save_html()} then copy it into \code{lib/dotpad-sdk-<version>/} beside
+every \code{use_cdn = FALSE} document and declare the globals with that
+relative path. A configured URL wins over a downloaded copy. The widget,
+knitr and Shiny paths render their charts in \code{srcdoc} frames, where a
+relative path has nothing to resolve against, so they use only the URL
+options.
+}
+
+\section{Languages other than English}{
+
+MAIDR.js reads a chart in English on its own, and in Korean, Japanese,
+Chinese, Spanish, German, French, Italian or Hindi from a locale pack,
+\code{locale-<code>.js}, that it fetches from beside itself when the
+reader's language is chosen or detected. A document that loads MAIDR.js
+from the CDN finds the packs there. This package does not bundle them --
+they would add 0.8 MB to an installed package already over CRAN's size
+guideline -- so every document that loads the bundled MAIDR.js, from
+\code{lib/} or inlined, declares \code{window.maidrLocaleBaseUrl} ahead of
+it: the packs of the bundled version on jsDelivr, unless
+\code{maidr.locale_base_url} names another place or none. English needs no
+network; another language is fetched when the reader is online and stays
+English when they are not. A page that declares
+\code{window.maidrLocaleBaseUrl} itself keeps its own.
+}
+
+\section{Which MAIDR.js the CDN serves}{
+
+Documents that load MAIDR.js from the jsDelivr CDN -- \code{show()} and
+\code{save_html()} with \code{use_cdn = TRUE}, and the widget, knitr and
+Shiny paths when they find the machine online -- load the latest
+published MAIDR.js, as the Python binding does. Documents rendered with
+\code{use_cdn = FALSE} load the copy bundled with this package, and reach
+the network only for the two things described above: a DotPad's SDK and
+a language other than English.
+
+The first CDN document in an R session asks which version is the latest:
+jsDelivr's data API
+(\url{https://data.jsdelivr.com/v1/packages/npm/maidr/resolved?specifier=latest}),
+then the npm registry
+(\url{https://registry.npmjs.org/-/package/maidr/dist-tags}) if that
+fails, within \code{maidr.cdn_timeout} seconds for the two together. The
+answer is kept for the rest of the session, and the document names that
+version, which never changes under the reader. When neither answers --
+offline, blocked, timed out -- that too is kept, no error is raised, and
+the document names the version bundled with this package, the copy
+\code{use_cdn = FALSE} would serve, as the Python binding does. So does
+an answer older than the bundled version. The mutable \code{maidr@latest}
+tag, which jsDelivr caches for up to a week, is used only when
+\code{maidr.cdn_version = "latest"} asks for it.
+
+Pin a version when a document has to load the same MAIDR.js wherever and
+whenever it is opened, or to keep the one this package was tested with:
+\preformatted{
+# The version bundled with this package, no lookup
+options(maidr.cdn_version = "bundled")
+
+# A particular release
+options(maidr.cdn_version = "4.9.0")
+
+# Or from the shell, for every session
+# MAIDR_CDN_VERSION=bundled Rscript render.R
+}
+}
+

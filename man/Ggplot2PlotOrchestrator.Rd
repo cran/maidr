@@ -4,335 +4,467 @@
 \alias{Ggplot2PlotOrchestrator}
 \title{Plot Orchestrator Class}
 \description{
-Plot Orchestrator Class
-
-Plot Orchestrator Class
-}
-\details{
 This class orchestrates the detection and processing of multiple layers
 in a ggplot2 object. It analyzes each layer individually and combines
 the results into a comprehensive interactive plot.
 }
-\keyword{-}
-\keyword{Unified}
-\keyword{all}
-\keyword{by}
-\keyword{creation}
 \keyword{internal}
-\keyword{layer}
-\keyword{plot}
-\keyword{processor}
-\keyword{types}
-\keyword{used}
-\section{Public fields}{
-\if{html}{\out{<div class="r6-fields">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object being processed}
-
-\item{\code{layers}}{List of detected layer information}
-
-\item{\code{layer_processors}}{List of layer-specific processors}
-
-\item{\code{combined_data}}{Combined data from all layers}
-
-\item{\code{combined_selectors}}{Combined selectors from all layers}
-
-\item{\code{layout}}{Layout information from the plot}
-}
-\if{html}{\out{</div>}}
-}
-\section{Active bindings}{
-\if{html}{\out{<div class="r6-active-bindings">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object being processed}
-
-\item{\code{layers}}{List of detected layer information}
-
-\item{\code{layer_processors}}{List of layer-specific processors}
-
-\item{\code{combined_data}}{Combined data from all layers}
-
-\item{\code{combined_selectors}}{Combined selectors from all layers}
-
-\item{\code{layout}}{Layout information from the plot}
-}
-\if{html}{\out{</div>}}
-}
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-Ggplot2PlotOrchestrator-new}{\code{Ggplot2PlotOrchestrator$new()}}
-\item \href{#method-Ggplot2PlotOrchestrator-detect_layers}{\code{Ggplot2PlotOrchestrator$detect_layers()}}
-\item \href{#method-Ggplot2PlotOrchestrator-analyze_single_layer}{\code{Ggplot2PlotOrchestrator$analyze_single_layer()}}
-\item \href{#method-Ggplot2PlotOrchestrator-determine_layer_type}{\code{Ggplot2PlotOrchestrator$determine_layer_type()}}
-\item \href{#method-Ggplot2PlotOrchestrator-create_layer_processors}{\code{Ggplot2PlotOrchestrator$create_layer_processors()}}
-\item \href{#method-Ggplot2PlotOrchestrator-create_layer_processor}{\code{Ggplot2PlotOrchestrator$create_layer_processor()}}
-\item \href{#method-Ggplot2PlotOrchestrator-create_unified_layer_processor}{\code{Ggplot2PlotOrchestrator$create_unified_layer_processor()}}
-\item \href{#method-Ggplot2PlotOrchestrator-process_layers}{\code{Ggplot2PlotOrchestrator$process_layers()}}
-\item \href{#method-Ggplot2PlotOrchestrator-extract_layout}{\code{Ggplot2PlotOrchestrator$extract_layout()}}
-\item \href{#method-Ggplot2PlotOrchestrator-combine_layer_results}{\code{Ggplot2PlotOrchestrator$combine_layer_results()}}
-\item \href{#method-Ggplot2PlotOrchestrator-generate_maidr_data}{\code{Ggplot2PlotOrchestrator$generate_maidr_data()}}
-\item \href{#method-Ggplot2PlotOrchestrator-get_gtable}{\code{Ggplot2PlotOrchestrator$get_gtable()}}
-\item \href{#method-Ggplot2PlotOrchestrator-get_layout}{\code{Ggplot2PlotOrchestrator$get_layout()}}
-\item \href{#method-Ggplot2PlotOrchestrator-get_combined_data}{\code{Ggplot2PlotOrchestrator$get_combined_data()}}
-\item \href{#method-Ggplot2PlotOrchestrator-get_layer_processors}{\code{Ggplot2PlotOrchestrator$get_layer_processors()}}
-\item \href{#method-Ggplot2PlotOrchestrator-get_layers}{\code{Ggplot2PlotOrchestrator$get_layers()}}
-\item \href{#method-Ggplot2PlotOrchestrator-is_patchwork_plot}{\code{Ggplot2PlotOrchestrator$is_patchwork_plot()}}
-\item \href{#method-Ggplot2PlotOrchestrator-is_faceted_plot}{\code{Ggplot2PlotOrchestrator$is_faceted_plot()}}
-\item \href{#method-Ggplot2PlotOrchestrator-process_faceted_plot}{\code{Ggplot2PlotOrchestrator$process_faceted_plot()}}
-\item \href{#method-Ggplot2PlotOrchestrator-process_patchwork_plot}{\code{Ggplot2PlotOrchestrator$process_patchwork_plot()}}
-\item \href{#method-Ggplot2PlotOrchestrator-has_unsupported_layers}{\code{Ggplot2PlotOrchestrator$has_unsupported_layers()}}
-\item \href{#method-Ggplot2PlotOrchestrator-should_fallback}{\code{Ggplot2PlotOrchestrator$should_fallback()}}
-\item \href{#method-Ggplot2PlotOrchestrator-clone}{\code{Ggplot2PlotOrchestrator$clone()}}
-}
+  \itemize{
+    \item \href{#method-Ggplot2PlotOrchestrator-initialize}{\code{Ggplot2PlotOrchestrator$new()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-detect_layers}{\code{Ggplot2PlotOrchestrator$detect_layers()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-skip_layers_that_drew_nothing}{\code{Ggplot2PlotOrchestrator$skip_layers_that_drew_nothing()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-analyze_single_layer}{\code{Ggplot2PlotOrchestrator$analyze_single_layer()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-determine_layer_type}{\code{Ggplot2PlotOrchestrator$determine_layer_type()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-create_layer_processors}{\code{Ggplot2PlotOrchestrator$create_layer_processors()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-create_layer_processor}{\code{Ggplot2PlotOrchestrator$create_layer_processor()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-create_unified_layer_processor}{\code{Ggplot2PlotOrchestrator$create_unified_layer_processor()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-process_layers}{\code{Ggplot2PlotOrchestrator$process_layers()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-extract_layout}{\code{Ggplot2PlotOrchestrator$extract_layout()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-combine_layer_results}{\code{Ggplot2PlotOrchestrator$combine_layer_results()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-generate_maidr_data}{\code{Ggplot2PlotOrchestrator$generate_maidr_data()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-get_gtable}{\code{Ggplot2PlotOrchestrator$get_gtable()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-get_layout}{\code{Ggplot2PlotOrchestrator$get_layout()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-get_combined_data}{\code{Ggplot2PlotOrchestrator$get_combined_data()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-get_layer_processors}{\code{Ggplot2PlotOrchestrator$get_layer_processors()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-get_layers}{\code{Ggplot2PlotOrchestrator$get_layers()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-is_patchwork_plot}{\code{Ggplot2PlotOrchestrator$is_patchwork_plot()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-is_faceted_plot}{\code{Ggplot2PlotOrchestrator$is_faceted_plot()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-process_faceted_plot}{\code{Ggplot2PlotOrchestrator$process_faceted_plot()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-process_patchwork_plot}{\code{Ggplot2PlotOrchestrator$process_patchwork_plot()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-has_unsupported_layers}{\code{Ggplot2PlotOrchestrator$has_unsupported_layers()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-should_fallback}{\code{Ggplot2PlotOrchestrator$should_fallback()}}
+    \item \href{#method-Ggplot2PlotOrchestrator-clone}{\code{Ggplot2PlotOrchestrator$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-new"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-new}{}}}
-\subsection{Method \code{new()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$new(plot)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-initialize}{}}}
+\subsection{\code{Ggplot2PlotOrchestrator$new()}}{
+  Create an orchestrator for a ggplot2 object
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$new(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-detect_layers"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-detect_layers}{}}}
-\subsection{Method \code{detect_layers()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$detect_layers()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$detect_layers()}}{
+  Turn each layer of the plot into a layer entry with its detected type
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$detect_layers()}
+    \if{html}{\out{</div>}}
+  }
 }
 
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-skip_layers_that_drew_nothing"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-skip_layers_that_drew_nothing}{}}}
+\subsection{\code{Ggplot2PlotOrchestrator$skip_layers_that_drew_nothing()}}{
+  Retag every layer that drew no rows as \code{"skip"}.
+
+A layer can be typed perfectly well and still have nothing in it -- a
+\code{data =} filtered to nothing, a stat that dropped every row, a
+facet arrangement in which one layer's data is empty, a \strong{Suggests}
+package absent so the stat could not run. It then reaches the schema
+as a layer a reader can walk into and find nothing in. Measured on ten
+points, the second layer drawn from \code{d[0, ]}:
+
+\preformatted{
+geom_point()   point(0)      an empty layer of points
+geom_col()     bar(0)        an empty layer of bars
+geom_line()    line(1x0)     one series, holding nothing
+geom_smooth()  smooth(1x0)   one series, holding nothing
 }
+
+Asked here rather than in \code{detect_layer_type()} because emptiness
+is not a fact about what \emph{kind} of chart a layer is, and because the
+classifier runs per layer: one \code{ggplot_build()} for the whole
+pass costs a chart ~37 ms once, where asking per layer would multiply
+it. \code{"skip"} rather than a fourth answer, because that is the tag
+the rest of the orchestrator already understands -- including the #176
+guard, so a chart whose \emph{only} layer is empty falls back to an image
+rather than announcing itself as interactive with nothing in it.
+
+A build that cannot answer changes nothing. That is the same posture
+\code{layer_drew_nothing()} takes: a plot that will not build is a
+bigger problem than this, and it is about to be met by whatever else
+needs the build.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$skip_layers_that_drew_nothing()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    NULL, invisibly. Rewrites \code{private$.layers} in place.
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-analyze_single_layer"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-analyze_single_layer}{}}}
-\subsection{Method \code{analyze_single_layer()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$analyze_single_layer(layer, layer_index)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$analyze_single_layer()}}{
+  Describe one ggplot2 layer as a layer entry with its detected type
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$analyze_single_layer(layer, layer_index)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{A ggplot2 layer object}
+      \item{\code{layer_index}}{Index of the layer}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Layer information list
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-determine_layer_type"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-determine_layer_type}{}}}
-\subsection{Method \code{determine_layer_type()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$determine_layer_type(plot, layer_index)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$determine_layer_type()}}{
+  The layer type the adapter detects for one layer of the plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$determine_layer_type(plot, layer_index)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{layer_index}}{Index of the layer}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-create_layer_processors"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-create_layer_processors}{}}}
-\subsection{Method \code{create_layer_processors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$create_layer_processors()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$create_layer_processors()}}{
+  Create a processor for every layer of a known type
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$create_layer_processors()}
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-create_layer_processor"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-create_layer_processor}{}}}
-\subsection{Method \code{create_layer_processor()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$create_layer_processor(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$create_layer_processor()}}{
+  Create the processor for one layer
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$create_layer_processor(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A layer processor, or NULL for an unknown type
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-create_unified_layer_processor"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-create_unified_layer_processor}{}}}
-\subsection{Method \code{create_unified_layer_processor()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$create_unified_layer_processor(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$create_unified_layer_processor()}}{
+  Unified layer processor creation - used by all plot types
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$create_unified_layer_processor(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Layer processor instance
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_info}}{Layer information}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Layer processor instance
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-process_layers"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-process_layers}{}}}
-\subsection{Method \code{process_layers()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$process_layers()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$process_layers()}}{
+  Run every layer processor and combine the results
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$process_layers()}
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-extract_layout"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-extract_layout}{}}}
-\subsection{Method \code{extract_layout()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$extract_layout()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$extract_layout()}}{
+  Read the figure-level title, subtitle, caption and axis labels from the built
+plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$extract_layout(built = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-combine_layer_results"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-combine_layer_results}{}}}
-\subsection{Method \code{combine_layer_results()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$combine_layer_results(layer_results)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$combine_layer_results()}}{
+  Combine the per-layer results into the subplot grid
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$combine_layer_results(layer_results)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_results}}{List of per-layer results, one per processor}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-generate_maidr_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-generate_maidr_data}{}}}
-\subsection{Method \code{generate_maidr_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$generate_maidr_data()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$generate_maidr_data()}}{
+  Assemble the MAIDR data object for the figure
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$generate_maidr_data()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with an id and the subplots
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-get_gtable"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-get_gtable}{}}}
-\subsection{Method \code{get_gtable()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$get_gtable()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$get_gtable()}}{
+  The gtable the plot was drawn to
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$get_gtable()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A gtable, or NULL before the layers are processed
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-get_layout"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-get_layout}{}}}
-\subsection{Method \code{get_layout()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$get_layout()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$get_layout()}}{
+  The figure-level layout read by \code{extract_layout()}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$get_layout()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-get_combined_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-get_combined_data}{}}}
-\subsection{Method \code{get_combined_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$get_combined_data()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$get_combined_data()}}{
+  The combined per-layer data
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$get_combined_data()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-get_layer_processors"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-get_layer_processors}{}}}
-\subsection{Method \code{get_layer_processors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$get_layer_processors()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$get_layer_processors()}}{
+  The processors created for the layers
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$get_layer_processors()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-get_layers"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-get_layers}{}}}
-\subsection{Method \code{get_layers()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$get_layers()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$get_layers()}}{
+  The detected layer entries
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$get_layers()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-is_patchwork_plot"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-is_patchwork_plot}{}}}
-\subsection{Method \code{is_patchwork_plot()}}{
-Check if the plot is a patchwork composition
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$is_patchwork_plot()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$is_patchwork_plot()}}{
+  Check if the plot is a patchwork composition
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$is_patchwork_plot()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical indicating if the plot is a patchwork plot
+  }
 }
 
-\subsection{Returns}{
-Logical indicating if the plot is a patchwork plot
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-is_faceted_plot"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-is_faceted_plot}{}}}
-\subsection{Method \code{is_faceted_plot()}}{
-Check if the plot is faceted
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$is_faceted_plot()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$is_faceted_plot()}}{
+  Check if the plot is faceted
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$is_faceted_plot()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical indicating if the plot is faceted
+  }
 }
 
-\subsection{Returns}{
-Logical indicating if the plot is faceted
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-process_faceted_plot"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-process_faceted_plot}{}}}
-\subsection{Method \code{process_faceted_plot()}}{
-Process a faceted plot using utility functions
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$process_faceted_plot()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$process_faceted_plot()}}{
+  Process a faceted plot using utility functions
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$process_faceted_plot()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    NULL (sets internal state)
+  }
 }
 
-\subsection{Returns}{
-NULL (sets internal state)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-process_patchwork_plot"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-process_patchwork_plot}{}}}
-\subsection{Method \code{process_patchwork_plot()}}{
-Process a patchwork multipanel plot using utility functions
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$process_patchwork_plot()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$process_patchwork_plot()}}{
+  Process a patchwork multipanel plot using utility functions
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$process_patchwork_plot()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    NULL (sets internal state)
+  }
 }
 
-\subsection{Returns}{
-NULL (sets internal state)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-has_unsupported_layers"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-has_unsupported_layers}{}}}
-\subsection{Method \code{has_unsupported_layers()}}{
-Check if any layers are unsupported (unknown type)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$has_unsupported_layers()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$has_unsupported_layers()}}{
+  Check if any layers are unsupported (unknown type)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$has_unsupported_layers()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical indicating if there are unsupported layers
+  }
 }
 
-\subsection{Returns}{
-Logical indicating if there are unsupported layers
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-should_fallback"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-should_fallback}{}}}
-\subsection{Method \code{should_fallback()}}{
-Determine if the plot should fall back to image rendering
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$should_fallback()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$should_fallback()}}{
+  Determine if the plot should fall back to image rendering
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$should_fallback()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical indicating if fallback should be used
+  }
 }
 
-\subsection{Returns}{
-Logical indicating if fallback should be used
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2PlotOrchestrator-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2PlotOrchestrator-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2PlotOrchestrator$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2PlotOrchestrator$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2PlotOrchestrator$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

@@ -1,6 +1,12 @@
 // MAIDR htmlwidget binding
 // Uses iframe-based isolation to ensure MAIDR.js initializes properly
 // for each plot in its own JavaScript context.
+//
+// Both listeners below are duplicated from the parent-side script that
+// `maidr_iframe_host_script()` (R/svg_utils.R) appends to every chart iframe.
+// They have to be: this binding sets the iframe HTML through `innerHTML`, and
+// a script element assigned that way never runs. Change one and change the
+// other -- nothing checks that the two agree.
 
 // Global message listener for iframe height auto-sizing
 // Only set up once per page
@@ -16,7 +22,8 @@
     if (typeof height !== "number" || height < 50) return;
 
     // Find the iframe that sent this message
-    // Since data: URLs are opaque origins, we check all MAIDR iframes
+    // Matched by contentWindow rather than by id: the frames carry their
+    // document in srcdoc and there is no URL on the message to key off.
     var iframes = document.querySelectorAll('iframe[id^="maidr-iframe-"]');
     iframes.forEach(function(iframe) {
       // Check if this iframe's contentWindow matches the message source
@@ -34,6 +41,88 @@
         }
       }
     });
+  });
+})();
+
+// Global listener for the chart asking to hand focus back to this page.
+// Only set up once per page.
+//
+// Keyboard events do not cross a frame boundary, so while the reader is inside
+// a chart the page around it hears nothing, and Shift+Tab off the chart is
+// their way back. Usually the browser handles that by itself; the chart only
+// asks when nothing reachable precedes its frame here, so that Shift+Tab would
+// otherwise leave the document altogether for the browser's own UI. A chart on
+// a reveal.js slide is exactly that case -- the deck renders no controls of its
+// own -- and from inside the chart no key reaches the deck.
+(function() {
+  if (window._maidrFocusEscapeSetup) return;
+  window._maidrFocusEscapeSetup = true;
+
+  var TABBABLE = 'a[href], area[href], button:not([disabled]), '
+    + 'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), '
+    + 'iframe, audio[controls], video[controls], '
+    + '[contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex^="-"])';
+  // A reveal.js slide is a <section>, so on a slide deck focus lands on the
+  // slide itself. Page-level landmarks are left out: handing a reader the whole
+  // page when they stepped out of one chart says less about where they are.
+  var CONTAINER = 'section, article, [role="region"]';
+
+  // A tab stop the reader cannot get to is not somewhere to send them, and that
+  // distinction is the whole point in a deck: reveal.js leaves the slides on
+  // either side of the current one rendered, so the chart on the previous slide
+  // is a tab stop in document order even though it is marked hidden.
+  function reachable(element) {
+    if (element.closest('[hidden], [aria-hidden="true"], [inert]')) return false;
+    var style = window.getComputedStyle(element);
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  function stopBefore(frame) {
+    var stops = document.querySelectorAll(TABBABLE);
+    var found = null;
+    for (var i = 0; i < stops.length; i++) {
+      if (stops[i] === frame) break;
+      if (reachable(stops[i])) found = stops[i];
+    }
+    return found;
+  }
+
+  // Asking an element to take focus is not enough. focus() on an element with
+  // no rendered box -- a `display: contents` wrapper, which is what Shiny puts
+  // around every output -- is a silent no-op, so the outcome has to be read
+  // back. A tabindex this added is removed again when the element refuses,
+  // rather than leaving it claiming it can hold focus.
+  function takeFocus(el) {
+    // As it stands first. A tab stop this page already owns is focusable as it
+    // is, and giving it tabindex="-1" would take it out of the tab order.
+    el.focus();
+    if (document.activeElement === el) return true;
+    if (el.hasAttribute("tabindex")) return false;
+    // tabindex="-1" takes focus without joining this page's tab order.
+    el.setAttribute("tabindex", "-1");
+    el.focus();
+    if (document.activeElement === el) return true;
+    el.removeAttribute("tabindex");
+    return false;
+  }
+
+  window.addEventListener("message", function(event) {
+    if (!event.data || event.data.type !== "maidr:frame-focus-escape") return;
+
+    var frames = document.querySelectorAll('iframe[id^="maidr-iframe-"]');
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].contentWindow !== event.source) continue;
+
+      var target = stopBefore(frames[i]);
+      if (target && takeFocus(target)) return;
+
+      var section = frames[i].closest(CONTAINER);
+      if (section && takeFocus(section)) return;
+      for (var el = frames[i].parentElement; el; el = el.parentElement) {
+        if (el !== section && takeFocus(el)) return;
+      }
+      return;
+    }
   });
 })();
 

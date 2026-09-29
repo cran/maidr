@@ -107,7 +107,6 @@ test_that("show() with shiny=TRUE works for Base R histogram", {
 })
 
 test_that("show() with shiny=TRUE works for Base R line plot", {
-  testthat::skip("Base R plot() function detection needs investigation")
   plot(1:10, rnorm(10), type = "l")
 
   html <- show(shiny = TRUE)
@@ -118,7 +117,6 @@ test_that("show() with shiny=TRUE works for Base R line plot", {
 })
 
 test_that("show() with shiny=TRUE works for Base R scatter plot", {
-  testthat::skip("Base R plot() function detection needs investigation")
   plot(mtcars$wt, mtcars$mpg)
 
   html <- show(shiny = TRUE)
@@ -150,11 +148,10 @@ test_that("show() errors when no Base R plot with shiny mode", {
   )
 })
 
-test_that("show() errors when invalid plot object provided", {
-  testthat::expect_error(
-    show(plot = 42)
-    # Should error - invalid plot object
-  )
+test_that("show() hands an object that is not a plot to methods::show()", {
+  # Issue #320: attaching maidr masks the show generic from methods, so a
+  # number has to print the way it did before rather than error.
+  testthat::expect_output(show(plot = 42), "[1] 42", fixed = TRUE)
 })
 
 # ==============================================================================

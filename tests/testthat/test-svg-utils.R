@@ -158,7 +158,6 @@ test_that("create_enhanced_svg function exists", {
 })
 
 test_that("create_enhanced_svg works with simple grob", {
-  testthat::skip_if_not_installed("gridSVG")
   testthat::skip_if_not_installed("ggplot2")
 
   # Create a simple ggplot and get its grob
@@ -175,6 +174,127 @@ test_that("create_enhanced_svg works with simple grob", {
 
   # May fail in non-interactive context, but should not error
   testthat::expect_true(is.null(result) || is.character(result))
+})
+
+# ==============================================================================
+# repair_na_text_justification Tests
+#
+# gridGraphics::grid.echo() leaves `vjust` NA on some text grobs and defers to
+# the grob's `just` field. gridSVG 1.7.7 branches on the raw value in
+# `justTovjust()` and aborts grid.export() with "missing value where
+# TRUE/FALSE needed". graphics::pie() labels every wedge, so before the repair
+# no base R pie chart could be exported at all.
+# ==============================================================================
+
+# Count the text grobs in a tree that still carry an NA justification.
+count_na_justified_text <- function(grob) {
+  n <- 0
+  walk <- function(g) {
+    if (inherits(g, "text")) {
+      if (anyNA(g$hjust) || anyNA(g$vjust)) {
+        n <<- n + 1
+      }
+    }
+    if (inherits(g, "gList")) {
+      for (i in seq_along(g)) walk(g[[i]])
+    }
+    if (inherits(g, "gTree") && !is.null(g$children)) {
+      for (i in seq_along(g$children)) walk(g$children[[i]])
+    }
+    if (!is.null(g$grobs)) {
+      for (i in seq_along(g$grobs)) walk(g$grobs[[i]])
+    }
+    invisible(NULL)
+  }
+  walk(grob)
+  n
+}
+
+# The grob tree the Base R orchestrator hands to create_enhanced_svg().
+echo_base_r_grob <- function(plot_fun) {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  ggplotify::as.grob(plot_fun)
+}
+
+test_that("repair_na_text_justification rewrites only the NA components", {
+  na_text <- grid::textGrob("label", name = "na-text")
+  na_text$hjust <- NA
+  na_text$vjust <- NA
+
+  repaired <- maidr:::repair_na_text_justification(na_text)
+  testthat::expect_equal(repaired$hjust, 0.5)
+  testthat::expect_equal(repaired$vjust, 0.5)
+
+  # A grob that already has a usable justification passes through untouched.
+  justified <- grid::textGrob("label", hjust = 0, vjust = 1, name = "ok-text")
+  untouched <- maidr:::repair_na_text_justification(justified)
+  testthat::expect_equal(untouched$hjust, 0)
+  testthat::expect_equal(untouched$vjust, 1)
+
+  testthat::expect_null(maidr:::repair_na_text_justification(NULL))
+})
+
+test_that("repair_na_text_justification descends into nested grobs", {
+  na_text <- grid::textGrob("label", name = "na-text")
+  na_text$vjust <- NA
+
+  tree <- grid::gTree(
+    name = "outer",
+    children = grid::gList(na_text, grid::rectGrob(name = "box"))
+  )
+
+  testthat::expect_equal(count_na_justified_text(tree), 1)
+  testthat::expect_equal(
+    count_na_justified_text(maidr:::repair_na_text_justification(tree)), 0
+  )
+})
+
+test_that("repair_na_text_justification is a no-op on a ggplot2 gtable", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  gt <- ggplot2::ggplotGrob(
+    ggplot2::ggplot(
+      data.frame(x = c("A", "B"), y = c(1, 2)),
+      ggplot2::aes(x = x, y = y)
+    ) +
+      ggplot2::geom_col()
+  )
+
+  # ggplot2's own text grobs already carry a numeric justification.
+  testthat::expect_equal(count_na_justified_text(gt), 0)
+})
+
+test_that("a base R pie grob exports with or without the repair", {
+  testthat::skip_if_not_installed("ggplotify")
+
+  grob <- echo_base_r_grob(function() graphics::pie(c(A = 1, B = 2, C = 3)))
+
+  # One NA-justified text grob per wedge label; barplot() has none. gridSVG
+  # 1.7.7 aborted the whole export on these ("missing value where TRUE/FALSE
+  # needed"); the svglite export leaves justification to grid, which draws
+  # them either way, and the repair must not change what is exported.
+  testthat::expect_equal(count_na_justified_text(grob), 3)
+  testthat::expect_equal(
+    count_na_justified_text(
+      echo_base_r_grob(function() graphics::barplot(c(A = 1, B = 2)))
+    ),
+    0
+  )
+
+  export <- function(g) {
+    svg <- maidr:::create_enhanced_svg(g, list(id = "pie"))
+    ids <- regmatches(svg, gregexpr('id="[^"]*"', svg))
+    unlist(ids)
+  }
+
+  raw <- export(grob)
+  repaired <- export(maidr:::repair_na_text_justification(grob))
+  testthat::expect_true(any(grepl("graphics-plot-1-text-", raw)))
+  testthat::expect_identical(
+    raw[!grepl("maidr-clip-", raw)],
+    repaired[!grepl("maidr-clip-", repaired)]
+  )
 })
 
 # ==============================================================================
@@ -237,4 +357,261 @@ test_that("create_html_document handles multiline SVG", {
   html_text <- as.character(result)
   testthat::expect_true(grepl("rect", html_text))
   testthat::expect_true(grepl("circle", html_text))
+})
+
+# ==============================================================================
+# create_standalone_html stylesheet Tests
+# ==============================================================================
+
+# Both branches decide what stylesheet, if any, reaches the document, and they
+# decide it differently: the CDN branch names a script whose URL maidr.js can
+# resolve maidr-math.css against, while the offline branch inlines a script
+# with no URL at all and so has to carry KaTeX itself.
+
+svg_fixture <- function() {
+  c(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">',
+    '<rect x="10" y="10" width="80" height="80"/>',
+    "</svg>"
+  )
+}
+
+test_that("the CDN branch links no stylesheet", {
+  html <- maidr:::create_standalone_html(svg_fixture(), use_cdn = TRUE)
+
+  # The script tag's own URL is what maidr.js resolves maidr-math.css
+  # against, so a <link> would be a request that changes nothing - and
+  # since maidr 3.75.1 maidr.css has no rules in it to change anything with.
+  testthat::expect_false(grepl("maidr.css", html, fixed = TRUE))
+  testthat::expect_false(grepl("rel=\"stylesheet\"", html, fixed = TRUE))
+  testthat::expect_true(grepl("/maidr.js\"></script>", html, fixed = TRUE))
+})
+
+test_that("the offline branch inlines KaTeX alongside the script", {
+  html <- maidr:::create_standalone_html(svg_fixture(), use_cdn = FALSE)
+
+  # No URL anywhere for the runtime to resolve against, so the rules have
+  # to already be in the document.
+  #
+  # What this guards is the offline branch emitting the CDN loader, so it
+  # looks for the loader, not for the bare host: since maidr.js 4.7.0 the
+  # inlined bundle itself carries jsDelivr URLs (the DotPad SDK, which
+  # upstream cannot redistribute and imports from the vendor's copy on first
+  # connect), and grepping the whole document for the host matched those.
+  #
+  # The one maidr URL the offline branch does write is where maidr.js may
+  # fetch a language other than English (test-locale-config.R): a string in
+  # a script, not a loader. It is taken out, and the rest held to the same
+  # standard as before.
+  declaration <- maidr:::maidr_locale_config_script()
+  testthat::expect_true(grepl(declaration, html, fixed = TRUE))
+  rest <- sub(declaration, "", html, fixed = TRUE)
+  testthat::expect_false(grepl(maidr:::maidr_cdn_url(), rest, fixed = TRUE))
+  testthat::expect_false(
+    grepl("cdn.jsdelivr.net/npm/maidr", rest, fixed = TRUE)
+  )
+  # And, at the attribute level, the document requests nothing external:
+  # no src or href on any tag points at another origin.
+  testthat::expect_false(grepl('(src|href)="(https?:)?//', html))
+  testthat::expect_true(grepl(".katex", html, fixed = TRUE))
+  # Stripped of its web fonts, per .github/scripts/fetch-maidr-bundle.sh.
+  testthat::expect_false(grepl("@font-face", html, fixed = TRUE))
+})
+
+# ==============================================================================
+# maidr_iframe_host_script Tests
+# ==============================================================================
+
+test_that("maidr_iframe_host_script handles both messages a chart frame posts", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  testthat::expect_type(script, "character")
+  testthat::expect_true(grepl("maidr-iframe-height", script, fixed = TRUE))
+  testthat::expect_true(grepl("maidr:frame-focus-escape", script, fixed = TRUE))
+})
+
+test_that("maidr_iframe_host_script registers itself only once per document", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # Every chart appends this script, so a document with three charts runs it
+  # three times; without the guard each run would add another message listener.
+  testthat::expect_true(
+    grepl("if (window.__maidrIframeHost) return;", script, fixed = TRUE)
+  )
+})
+
+test_that("maidr_iframe_host_script prefers the tab stop before the frame", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # Focus goes where the browser would have sent it when this page has
+  # somewhere real to send it, and only falls back to the frame's own
+  # container -- the slide, in a reveal.js deck -- when it does not.
+  testthat::expect_true(grepl("stopBefore(frame)", script, fixed = TRUE))
+  testthat::expect_true(grepl("frame.closest(CONTAINER)", script, fixed = TRUE))
+  testthat::expect_true(grepl("tabindex", script, fixed = TRUE))
+})
+
+test_that("maidr_iframe_host_script skips tab stops a reader cannot reach", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # reveal.js leaves the slides on either side of the current one rendered, so
+  # a chart on the previous slide is a tab stop in document order even though
+  # it is marked hidden. Treating it as somewhere to send the reader would put
+  # focus on an off-screen chart instead of back on the slide.
+  testthat::expect_true(grepl("aria-hidden", script, fixed = TRUE))
+  testthat::expect_true(grepl("[inert]", script, fixed = TRUE))
+})
+
+test_that("maidr_iframe_host_script uses a height only once it is one", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # Any script on the page can post a message. An absent height wrote
+  # "undefinedpx", and an arbitrary number resized the frame to it.
+  testthat::expect_true(
+    grepl('typeof e.data.height !== "number"', script, fixed = TRUE)
+  )
+  testthat::expect_true(grepl("e.data.height < 50", script, fixed = TRUE))
+})
+
+test_that("maidr_iframe_host_script checks that focus actually landed", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # Asking is not enough: focus() on an element with no rendered box -- a
+  # `display: contents` wrapper, which is what Shiny puts around every output
+  # -- is a silent no-op. Without reading the outcome back, the handoff would
+  # leave the reader inside the chart with nothing to show for the keypress.
+  testthat::expect_true(
+    grepl("if (document.activeElement === el) return true;", script, fixed = TRUE)
+  )
+  # And it walks on to the next ancestor rather than stopping at the refusal.
+  testthat::expect_true(
+    grepl("for (var el = frame.parentElement; el; el = el.parentElement)", script, fixed = TRUE)
+  )
+  # An element that refuses is not left claiming it can hold focus.
+  testthat::expect_true(
+    grepl('el.removeAttribute("tabindex");', script, fixed = TRUE)
+  )
+})
+
+test_that("maidr_iframe_host_script checks the tab stop it found as well", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # `stopBefore()` returns whatever matched the tabbable selector, and a
+  # `display: contents` element with a tabindex matches it while still being
+  # unable to hold focus. Trusting that one would strand the reader exactly as
+  # trusting the container did.
+  testthat::expect_true(grepl("if (target && takeFocus(target)) return;", script, fixed = TRUE))
+})
+
+test_that("maidr_iframe_host_script asks an element before it writes to it", {
+  script <- maidr:::maidr_iframe_host_script()
+
+  # A tab stop this page already owns is focusable as it stands, and giving it
+  # `tabindex="-1"` would take it out of the page's tab order. So the call
+  # comes first and the attribute only follows a refusal.
+  focus_first <- regexpr("el.focus();", script, fixed = TRUE)
+  writes_after <- regexpr('el.setAttribute("tabindex", "-1");', script, fixed = TRUE)
+  testthat::expect_gt(focus_first, 0)
+  testthat::expect_gt(writes_after, focus_first)
+})
+
+test_that("create_maidr_iframe attaches the host script to the frame", {
+  html <- maidr:::create_maidr_iframe("<svg></svg>", plot_id = "test-plot")
+
+  testthat::expect_true(grepl("id=\"maidr-iframe-test-plot\"", html, fixed = TRUE))
+  testthat::expect_true(grepl("__maidrIframeHost", html, fixed = TRUE))
+})
+
+# ==============================================================================
+# chartSeries panels and post-processing
+# ==============================================================================
+
+test_that("clip_chartseries_panel_rects moves lower-panel rects into their clip viewport", {
+  testthat::skip_if_not_installed("quantmod")
+  testthat::skip_if_not_installed("ggplotify")
+  testthat::skip_if_not_installed("gridGraphics")
+
+  x <- xts::xts(
+    cbind(
+      S.Open = c(100, 105, 110), S.High = c(115, 108, 112),
+      S.Low = c(95, 102, 105), S.Close = c(110, 103, 111),
+      S.Volume = c(1000, 1500, 1200)
+    ),
+    order.by = as.Date(c("2023-01-02", "2023-01-03", "2023-01-04"))
+  )
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  gt <- suppressWarnings(ggplotify::as.grob(function() {
+    quantmod::chartSeries(x, type = "candlesticks", theme = "white", name = "S")
+  }))
+  vp_of <- function(tree, name) {
+    found <- NULL
+    walk <- function(g) {
+      if (!is.null(g$name) && identical(g$name, name)) found <<- g
+      for (child in g$children) walk(child)
+    }
+    walk(tree)
+    as.character(found$vp)
+  }
+
+  moved <- maidr:::clip_chartseries_panel_rects(gt)
+  # The volume bars were echoed into a viewport that does not clip.
+  testthat::expect_false(grepl("-clip::", vp_of(gt, "graphics-plot-2-rect-2")))
+  testthat::expect_match(
+    vp_of(moved, "graphics-plot-2-rect-2"),
+    "::graphics-plot-2-clip::graphics-window-2-1$"
+  )
+  # The price panel is left where it was.
+  testthat::expect_identical(
+    vp_of(moved, "graphics-plot-1-rect-2"), vp_of(gt, "graphics-plot-1-rect-2")
+  )
+  # The moved tree still draws.
+  grid::grid.newpage()
+  testthat::expect_no_error(grid::grid.draw(moved))
+})
+
+test_that("clip_chartseries_panel_rects leaves a tree without clip viewports alone", {
+  tree <- grid::gTree(children = grid::gList(
+    grid::rectGrob(name = "graphics-plot-2-rect-1")
+  ))
+  testthat::expect_identical(maidr:::clip_chartseries_panel_rects(tree), tree)
+  testthat::expect_null(maidr:::clip_chartseries_panel_rects(NULL))
+})
+
+test_that("translate_x reads the x of a translate() transform", {
+  testthat::expect_equal(maidr:::translate_x("translate(789.94, 416.76)"), 789.94)
+  testthat::expect_equal(maidr:::translate_x("translate(-3,4) scale(1, -1)"), -3)
+  testthat::expect_equal(maidr:::translate_x("scale(1, -1)"), 0)
+  testthat::expect_equal(maidr:::translate_x(NA_character_), 0)
+})
+
+test_that("adjust_chartseries_bracket_doc places the header inside the page", {
+  doc <- xml2::read_xml(paste0(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 864 432">',
+    '<g transform="translate(0, 432) scale(1, -1)">',
+    '<g id="graphics-plot-1-main-2.1.1" transform="translate(789.94, 416.76)">',
+    '<g transform="scale(1, -1)">',
+    '<text x="0" y="0">[2024-01-01/2024-01-12]</text>',
+    "</g></g></g></svg>"
+  ))
+  testthat::expect_true(maidr:::adjust_chartseries_bracket_doc(doc))
+  text <- xml2::xml_find_first(doc, "//*[local-name()='text']")
+  # 95% of the page, less the translation the text is drawn under.
+  testthat::expect_equal(
+    as.numeric(xml2::xml_attr(text, "x")), 864 * 0.95 - 789.94, tolerance = 1e-6
+  )
+  testthat::expect_equal(xml2::xml_attr(text, "text-anchor"), "end")
+})
+
+test_that("strip_chartseries_right_axis_doc removes the axis line and ticks, not the labels", {
+  doc <- xml2::read_xml(paste0(
+    '<svg xmlns="http://www.w3.org/2000/svg">',
+    '<g id="graphics-plot-1-right-axis-line-1.1"/>',
+    '<g id="graphics-plot-1-right-axis-ticks-1.1"/>',
+    '<g id="graphics-plot-1-right-axis-labels-1.1"/>',
+    "</svg>"
+  ))
+  testthat::expect_true(maidr:::strip_chartseries_right_axis_doc(doc))
+  ids <- xml2::xml_attr(xml2::xml_find_all(doc, "//*[@id]"), "id")
+  testthat::expect_equal(ids, "graphics-plot-1-right-axis-labels-1.1")
 })

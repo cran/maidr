@@ -7,17 +7,27 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
   "BaseRHeatmapLayerProcessor",
   inherit = LayerProcessor,
   public = list(
+    #' @description Process the layer: read its data, selectors, axis titles and main title from
+    #'   the recorded call
+    #' @param plot Unused; present for the processor interface
+    #' @param layout Unused; present for the processor interface
+    #' @param built Unused; present for the processor interface
+    #' @param gt Gtable of the replayed drawing, searched for selectors (optional)
+    #' @param grob_id Unused; present for the processor interface
+    #' @param panel_id Unused; present for the processor interface
+    #' @param panel_ctx Unused; present for the processor interface
+    #' @param layer_info Layer information with the recorded call
+    #' @return List describing the layer for the MAIDR payload
     process = function(plot,
                        layout,
                        built = NULL,
                        gt = NULL,
-                       scale_mapping = NULL,
                        grob_id = NULL,
                        panel_id = NULL,
                        panel_ctx = NULL,
                        layer_info = NULL) {
       data <- self$extract_data(layer_info)
-      selectors <- self$generate_selectors(layer_info, gt)
+      selectors <- self$generate_selectors(layer_info, gt, data)
       axes <- self$extract_axis_titles(layer_info)
       title <- self$extract_main_title(layer_info)
 
@@ -30,6 +40,9 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
         domMapping = list(order = "row") # Explicit row-major DOM mapping
       )
     },
+    #' @description One row per cell of the recorded matrix, in drawn order
+    #' @param layer_info Layer information with the recorded call
+    #' @return List of rows
     extract_data = function(layer_info) {
       if (is.null(layer_info)) {
         return(list())
@@ -38,29 +51,107 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
       plot_call <- layer_info$plot_call
       args <- plot_call$args
 
-      heat_matrix <- NULL
-      if (length(args) > 0 && length(names(args)) > 0 && names(args)[1] == "") {
-        heat_matrix <- args[[1]]
+      # The matrix may arrive named (x = m) or positional (m); with only
+      # positional args names(args) is NULL, so check both forms.
+      heat_matrix <- args[["x"]]
+      if (is.null(heat_matrix) && length(args) > 0) {
+        arg_names <- names(args)
+        unnamed <- if (is.null(arg_names)) {
+          seq_along(args)
+        } else {
+          which(!nzchar(arg_names))
+        }
+        if (length(unnamed) > 0) {
+          heat_matrix <- args[[unnamed[1]]]
+        }
       }
 
       if (is.null(heat_matrix) || !is.matrix(heat_matrix)) {
         return(list(points = list(), x = character(0), y = character(0)))
       }
 
+      function_name <- layer_info$function_name
+
+      # heatmap()/image() put reordered row 1 at the BOTTOM of the y axis,
+      # so the top-down grid is the reverse of the matrix. heatmap()'s revC
+      # flips the drawing back, and then the matrix already reads top-down.
+      reverse_rows <- TRUE
+      ordering <- NULL
+
+      if (identical(function_name, "heatmap")) {
+        # heatmap() reorders rows/columns by dendrogram (default Rowv/Colv)
+        # before drawing; extract the same ordering so announced values
+        # match the drawn cells.
+        ordering <- self$compute_heatmap_ordering(args)
+        if (!is.null(ordering)) {
+          heat_matrix <- heat_matrix[
+            ordering$rowInd, ordering$colInd,
+            drop = FALSE
+          ]
+        }
+        if (heatmap_applies_revc(args)) {
+          reverse_rows <- FALSE
+        }
+      } else if (identical(function_name, "image")) {
+        # image(z) draws matrix ROWS along the x-axis and COLUMNS along
+        # the y-axis; transpose so the emitted grid matches the visual.
+        heat_matrix <- t(heat_matrix)
+      }
+
       row_names <- rownames(heat_matrix)
       col_names <- colnames(heat_matrix)
 
+      # heatmap() resolves each axis in one expression: it takes the
+      # caller's own `labRow` subscripted by `rowInd` when there is one,
+      # falling back to `rownames(x)` and then to `(1L:nr)[rowInd]`. So the
+      # caller's labels come FIRST and beat dimnames, and they carry the same
+      # ordering as everything else. `x` is already reordered by the time
+      # `rownames(x)` is read, which is why only the first and third arms of
+      # that fallback carry a subscript.
+      if (identical(function_name, "heatmap")) {
+        # When the ordering probe came back empty the matrix was not
+        # reordered either, so heatmap()'s subscript is the identity - but it
+        # is still a subscript, which is what keeps a mismatched-length
+        # labRow from producing more or fewer labels than there are rows
+        # (raised in review).
+        row_order <- if (is.null(ordering)) {
+          seq_len(nrow(heat_matrix))
+        } else {
+          ordering$rowInd
+        }
+        col_order <- if (is.null(ordering)) {
+          seq_len(ncol(heat_matrix))
+        } else {
+          ordering$colInd
+        }
+
+        caller_rows <- heatmap_caller_labels(args[["labRow"]], row_order)
+        if (!is.null(caller_rows)) row_names <- caller_rows
+        caller_cols <- heatmap_caller_labels(args[["labCol"]], col_order)
+        if (!is.null(caller_cols)) col_names <- caller_cols
+      }
+
+      # An unnamed matrix keeps no dimnames through the reorder, so fall back
+      # the way heatmap() itself does: it labels the reordered matrix with
+      # `(1L:nr)[rowInd]`, i.e. the ORIGINAL indices in drawn order, not with
+      # 1..n positions. Only when no ordering was recovered -- or for image(),
+      # which never reorders -- is a plain 1..n sequence the drawn label.
       if (is.null(row_names)) {
-        row_names <- as.character(seq_len(nrow(heat_matrix)))
+        row_names <- if (is.null(ordering)) {
+          as.character(seq_len(nrow(heat_matrix)))
+        } else {
+          as.character(ordering$rowInd)
+        }
       }
       if (is.null(col_names)) {
-        col_names <- as.character(seq_len(ncol(heat_matrix)))
+        col_names <- if (is.null(ordering)) {
+          as.character(seq_len(ncol(heat_matrix)))
+        } else {
+          as.character(ordering$colInd)
+        }
       }
 
       # points is a 2D array where points[row][col] = value
-      # IMPORTANT: Base R heatmap() renders rows from bottom to top visually
-      # but DOM elements are created in row-major order matching visual layout
-      # We need to reverse to match the visual bottom-to-top order
       points <- list()
       for (i in seq_len(nrow(heat_matrix))) {
         row_values <- list()
@@ -70,17 +161,51 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
         points[[i]] <- row_values
       }
 
-      # Reverse to match visual bottom-to-top order
-      points_reversed <- rev(points)
-      row_names_reversed <- rev(row_names)
+      if (reverse_rows) {
+        points <- rev(points)
+        row_names <- rev(row_names)
+      }
 
       list(
-        points = points_reversed,
+        points = points,
         x = as.list(col_names),
-        y = as.list(row_names_reversed)
+        y = as.list(row_names)
       )
     },
-    generate_selectors = function(layer_info, gt = NULL) {
+
+    #' @description Reproduce the row/column ordering heatmap() draws with
+    #' @param args Recorded heatmap() arguments
+    #' @return List with rowInd/colInd, or NULL if unavailable
+    compute_heatmap_ordering = function(args) {
+      result <- tryCatch(
+        {
+          null_pdf <- tempfile(fileext = ".pdf")
+          grDevices::pdf(null_pdf)
+          on.exit(
+            {
+              grDevices::dev.off()
+              unlink(null_pdf)
+            },
+            add = TRUE
+          )
+          # heatmap() has no plot = FALSE: run it on a throwaway device to
+          # obtain the exact rowInd/colInd it uses (invisibly returned).
+          do.call(stats::heatmap, clean_maidr_args(args))
+        },
+        error = function(e) NULL
+      )
+
+      if (is.null(result) || is.null(result$rowInd) || is.null(result$colInd)) {
+        return(NULL)
+      }
+      result
+    },
+    #' @description Selectors for the image tiles, one per cell
+    #' @param layer_info Layer information with the recorded call
+    #' @param gt Gtable of the replayed drawing (optional)
+    #' @param extracted_data The data already extracted for this layer (optional)
+    #' @return List of selectors
+    generate_selectors = function(layer_info, gt = NULL, extracted_data = NULL) {
       if (is.null(gt)) {
         return(list())
       }
@@ -95,18 +220,45 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
       # Search for image-rect grobs (heatmap creates image-rect patterns)
       selector <- self$generate_selectors_from_grob(gt, group_index)
 
-      if (length(selector) > 0 && selector != "") {
-        return(list(selector))
+      if (length(selector) == 0 || !nzchar(selector[1])) {
+        # Fallback container id when the grob search finds nothing
+        selector <- paste0(
+          "g#graphics-plot-",
+          group_index,
+          "-image-rect-1\\.1 > rect"
+        )
       }
 
-      # Fallback selector
-      main_selector <- paste0(
-        "g#graphics-plot-",
-        group_index,
-        "-image-rect-1\\.1 > rect"
-      )
-      list(main_selector)
+      # Preferred form: a per-cell selector grid. The frontend indexes
+      # grid[r][c] with logical row 0 = BOTTOM visual row, exactly the
+      # order gridSVG emits the image rects in (bottom-to-top,
+      # row-major). A bare container selector instead makes the frontend
+      # apply its own DOM-order heuristic, which assumes top-to-bottom
+      # rects and highlights the vertically mirrored cell.
+      n_rows <- length(extracted_data$points)
+      n_cols <- if (n_rows > 0) length(extracted_data$points[[1]]) else 0
+      if (n_rows > 0 && n_cols > 0) {
+        group_selector <- sub(" > rect$", "", selector[1])
+        grid <- vector("list", n_rows)
+        for (logical_row in seq_len(n_rows)) {
+          row_selectors <- vector("list", n_cols)
+          for (col in seq_len(n_cols)) {
+            child_index <- (logical_row - 1) * n_cols + col
+            row_selectors[[col]] <- paste0(
+              group_selector, " > rect:nth-child(", child_index, ")"
+            )
+          }
+          grid[[logical_row]] <- row_selectors
+        }
+        return(grid)
+      }
+
+      list(selector)
     },
+    #' @description Find the image-rect grobs drawn by the plot group at `group_index`
+    #' @param grob The grob tree to search
+    #' @param group_index Index of the recorded plot group, which numbers the panel's grobs
+    #' @return Character vector of grob names
     find_image_rect_grobs = function(grob, group_index) {
       names <- character(0)
 
@@ -146,6 +298,10 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
 
       names
     },
+    #' @description Build this layer's selector from the grob tree
+    #' @param grob The grob tree to search
+    #' @param group_index Index of the recorded plot group, which numbers the panel's grobs
+    #' @return A selector string, or an empty string when no grob matches
     generate_selectors_from_grob = function(grob, group_index = NULL) {
       rect_names <- self$find_image_rect_grobs(grob, group_index)
 
@@ -161,22 +317,31 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
 
       selector
     },
+    #' @description Extract the axis titles for this layer
+    #'
+    #' `heatmap()` lays the matrix out one way round only -- its columns run
+    #' along x and its rows up y -- so those two words are facts about the
+    #' call. `image()` is not the same picture: it draws a coordinate grid,
+    #' and `image(x, y, z)` puts the caller's own coordinates on those axes,
+    #' so naming them after a matrix would be a guess. It gets no default.
+    #'
+    #' @param layer_info Layer information
+    #' @return Canonical axes list
     extract_axis_titles = function(layer_info) {
-      if (is.null(layer_info)) {
-        return(build_axes(x = "", y = "", z = ""))
-      }
+      args <- layer_info$plot_call$args
+      is_heatmap <- identical(layer_info$function_name, "heatmap")
 
-      plot_call <- layer_info$plot_call
-      args <- plot_call$args
-
-      x_title <- if (!is.null(args$xlab)) args$xlab else ""
-      y_title <- if (!is.null(args$ylab)) args$ylab else ""
-      # For heatmaps, z represents the data values
-      # Use a reasonable default label for the color scale
-      z_title <- "value"
-
-      build_axes(x = x_title, y = y_title, z = z_title)
+      build_axes(
+        x = recorded_axis_label(args, "xlab", if (is_heatmap) "Columns" else NULL),
+        y = recorded_axis_label(args, "ylab", if (is_heatmap) "Rows" else NULL),
+        # For heatmaps, z represents the data values
+        # Use a reasonable default label for the color scale
+        z = "value"
+      )
     },
+    #' @description The main title of the recorded call, or an empty string
+    #' @param layer_info Layer information with the recorded call
+    #' @return Character string
     extract_main_title = function(layer_info) {
       if (is.null(layer_info)) {
         return("")
@@ -185,9 +350,76 @@ BaseRHeatmapLayerProcessor <- R6::R6Class(
       plot_call <- layer_info$plot_call
       args <- plot_call$args
 
-      main_title <- if (!is.null(args$main)) args$main else ""
+      main_title <- recorded_main_title(args)
 
       main_title
     }
   )
 )
+
+#' Does This heatmap() Call Apply revC?
+#'
+#' `heatmap()` normally puts reordered row 1 at the bottom of the y axis, but
+#' its `revC` argument flips the drawing so row 1 lands at the top. `revC` is
+#' not part of the ordering `heatmap()` returns, and it defaults to
+#' `identical(Colv, "Rowv")` -- which is TRUE for every `symm = TRUE` call,
+#' since `Colv` itself defaults to `"Rowv"` there.
+#'
+#' @param args Recorded heatmap() arguments
+#' @return TRUE when `revC` applies, i.e. the drawn rows read top-down
+#' @keywords internal
+heatmap_applies_revc <- function(args) {
+  matched <- tryCatch(
+    {
+      call <- as.call(c(list(quote(stats::heatmap)), clean_maidr_args(args)))
+      as.list(match.call(stats::heatmap, call))[-1]
+    },
+    error = function(e) NULL
+  )
+  if (is.null(matched)) {
+    return(FALSE)
+  }
+
+  if ("revC" %in% names(matched)) {
+    return(isTRUE(matched$revC))
+  }
+
+  colv <- if ("Colv" %in% names(matched)) {
+    matched$Colv
+  } else if (isTRUE(matched$symm)) {
+    "Rowv"
+  } else {
+    NULL
+  }
+  identical(colv, "Rowv")
+}
+
+#' Resolve a heatmap()'s Caller-Supplied Axis Labels
+#'
+#' `heatmap()` gives an explicit `labRow=`/`labCol=` priority over the
+#' matrix's own dimnames, and subscripts it by the same ordering it applies to
+#' the data: `labRow[rowInd] %||% rownames(x) %||% (1L:nr)[rowInd]`. Reading
+#' the labels off the reordered matrix therefore announced the dimnames -- or,
+#' for an unnamed matrix, bare indices -- while the axis showed the caller's
+#' strings.
+#'
+#' A short or `NA`-carrying vector is passed through rather than rejected:
+#' `labRow[rowInd]` yields `NA` for the positions it cannot fill, and grid
+#' draws that as the glyphs "NA", so mirroring it keeps the announcement equal
+#' to the picture. Subscripting is also what holds the result to one label per
+#' row: a caller who supplies too many gets the surplus dropped, exactly as
+#' `heatmap()` drops it.
+#'
+#' @param labels The recorded `labRow=` or `labCol=` argument, or NULL
+#' @param ordering The matching `rowInd`/`colInd`. Never NULL: when no
+#'   ordering was recovered the caller passes the identity, because
+#'   `heatmap()` applies a subscript either way
+#' @return Character vector in drawn order, or NULL when the caller supplied
+#'   no labels for this axis
+#' @keywords internal
+heatmap_caller_labels <- function(labels, ordering) {
+  if (is.null(labels)) {
+    return(NULL)
+  }
+  as.character(labels[ordering])
+}

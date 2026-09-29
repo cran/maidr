@@ -4,8 +4,8 @@
 #' injection, and HTML generation that work for all plot types.
 #'
 #' @importFrom grid grid.newpage grid.draw
-#' @importFrom gridSVG grid.export
 #' @importFrom stats setNames
+#' @noRd
 NULL
 
 # Counter for unique ID generation
@@ -21,10 +21,13 @@ NULL
 #' @keywords internal
 generate_unique_id <- function() {
   .maidr_id_counter$value <- .maidr_id_counter$value + 1L
+  # Process ID (not sample.int) for cross-session uniqueness: drawing a
+  # random number here would silently advance the user's RNG state and
+  # break set.seed() reproducibility of their scripts.
   paste0(
     as.integer(Sys.time()) * 1000 + .maidr_id_counter$value,
     "-",
-    sample.int(9999, 1)
+    Sys.getpid()
   )
 }
 
@@ -35,12 +38,10 @@ generate_unique_id <- function() {
 #' @return Character vector of SVG content
 #' @keywords internal
 create_enhanced_svg <- function(gt, maidr_data, ...) {
-  svg_file <- tempfile(fileext = ".svg")
-
   # Save current device
   current_dev <- grDevices::dev.cur()
 
-  # Device dimensions (must match the PDF device)
+  # Device dimensions
   # Default: 7x5 (existing aspect ratio used by all other plot types).
   # Candlestick (chartSeries) needs a wider canvas (10x5) to keep
   # chartSeries' centered title and right-side bracketed date range
@@ -55,61 +56,511 @@ create_enhanced_svg <- function(gt, maidr_data, ...) {
   has_candlestick <- length(collect_candlestick_layers(maidr_data)) > 0L
   # Candlestick needs a larger canvas (12x6 in -> 864x432 px) so that
   # chartSeries' right-side date-range header and bottom date labels
-  # fit inside the gridSVG viewBox. This MUST match the gt_width/gt_height
-  # used in base_r_plot_orchestrator.R; otherwise gridSVG exports content
+  # fit inside the SVG viewBox. This MUST match the gt_width/gt_height
+  # used in base_r_plot_orchestrator.R; otherwise the export draws content
   # sized for 864x432 into a 720x360 viewBox, producing a background rect
   # at (-180,-90) with size 1080x540 and right-axis labels only ~47 px
   # from the right edge. See quantmod GH issue #129.
   dev_width  <- if (has_candlestick) 12 else 7  # inches (was 10)
   dev_height <- if (has_candlestick)  6 else 5  # inches (was 5)
 
-  # Use a null/invisible PDF device for rendering to avoid side effects
-  pdf_file <- tempfile(fileext = ".pdf")
-  grDevices::pdf(pdf_file, width = dev_width, height = dev_height)
+  # Draw on the svglite page the SVG is exported from, so everything
+  # measured below (the violin coordinates) is measured on the layout the
+  # reader sees.
+  svg_string <- open_svg_device(dev_width, dev_height)
+  svg_dev <- grDevices::dev.cur()
   on.exit(
     {
-      grDevices::dev.off()
-      if (current_dev > 1) grDevices::dev.set(current_dev)
-      unlink(pdf_file)
+      if (svg_dev %in% grDevices::dev.list()) grDevices::dev.off(svg_dev)
+      if (current_dev > 1 && current_dev %in% grDevices::dev.list()) {
+        grDevices::dev.set(current_dev)
+      }
     },
     add = TRUE
   )
 
-  # Render to the invisible device
+  # The repairs have to happen here rather than after drawing: the
+  # export reads the grid display list, so only the tree that was actually
+  # drawn is the one it exports.
   grid.newpage()
-  grid.draw(gt)
+  if (has_candlestick) {
+    gt <- clip_chartseries_panel_rects(gt)
+  }
+  grid.draw(normalise_negative_rects(
+    split_vectorised_curve_grobs(repair_na_text_justification(gt))
+  ))
 
   # Inject svg_x/svg_y coordinates into violin_kde layers while we have
-
   # access to the grid viewports (must happen after grid.draw but before
   # closing the device)
   maidr_data <- inject_violin_kde_svg_coords(gt, maidr_data)
 
-  # Export to SVG
-  grid.export(svg_file, exportCoords = "inline", exportMappings = "inline")
+  svg_content <- export_svg_scene(svg_string, dev_width, dev_height)
 
-  svg_content <- readLines(svg_file, warn = FALSE)
-  # Inject candlestick open/close virtual line elements before serializing
-  # the maidr-data attribute so that the bundled maidr JS can resolve
-  # `selectors.open` / `selectors.close` against real DOM nodes (bypassing
-  # its Y-axis-flip-unaware auto-derivation heuristic).
-  svg_content <- inject_candlestick_open_close(svg_content, maidr_data)
-  # Reposition quantmod chartSeries' bracketed date-range header so it
-  # right-aligns inside the viewBox (upstream quantmod #129). No-op for
-  # ggplot candlestick / non-candlestick plots.
-  svg_content <- adjust_chartseries_bracket(svg_content, maidr_data)
-  # Remove the misaligned bottom-axis line and tick marks from
-  # chartSeries candlestick output (date labels remain). No-op for
-  # ggplot candlesticks / non-candlestick plots.
-  svg_content <- strip_chartseries_date_axis(svg_content, maidr_data)
-  # Remove the right y-axis (line + ticks + price labels) from
-  # chartSeries candlestick output: on sparse OHLC the vertical
-  # axis line overlaps the rightmost candle. Price info remains
-  # in maidr-data JSON and is announced by the screen reader.
-  svg_content <- strip_chartseries_right_axis(svg_content, maidr_data)
+  # Candlestick post-processing + maidr-data injection. Parse the SVG
+  # ONCE and apply all transformations to the same xml2 document (which
+  # xml2 mutates in place); re-parsing between each step is O(document)
+  # per step and dominated rendering time for large charts.
+  if (has_candlestick && requireNamespace("xml2", quietly = TRUE)) {
+    svg_doc <- tryCatch(
+      xml2::read_xml(paste(svg_content, collapse = "\n")),
+      error = function(e) NULL
+    )
+    if (!is.null(svg_doc)) {
+      # Inject candlestick open/close virtual line elements before
+      # serializing the maidr-data attribute so that the bundled maidr JS
+      # can resolve `selectors.open` / `selectors.close` against real DOM
+      # nodes (bypassing its Y-axis-flip-unaware auto-derivation
+      # heuristic).
+      inject_candlestick_open_close_doc(svg_doc, maidr_data)
+      # Reposition quantmod chartSeries' bracketed date-range header so it
+      # right-aligns inside the viewBox (upstream quantmod #129).
+      adjust_chartseries_bracket_doc(svg_doc)
+      # Remove the misaligned bottom-axis line and tick marks from
+      # chartSeries candlestick output (date labels remain).
+      strip_chartseries_date_axis_doc(svg_doc)
+      # Remove the right y-axis line and ticks from chartSeries
+      # candlestick output: the echoed tree draws them inside the plot
+      # region. The price labels stay.
+      strip_chartseries_right_axis_doc(svg_doc)
+      set_maidr_data_attr(svg_doc, maidr_data)
+      return(strsplit(as.character(svg_doc), "\n")[[1]])
+    }
+  }
+
   svg_content <- add_maidr_data_to_svg(svg_content, maidr_data)
 
   svg_content
+}
+
+#' Repair NA text-grob justification so gridSVG can export the tree
+#'
+#' `gridGraphics::grid.echo()` translates some base graphics text into grid
+#' text grobs that leave `vjust` (and, in principle, `hjust`) as NA and defer
+#' to the grob's `just` field instead. gridSVG 1.7.7 passes the raw value to
+#' `gridSVG:::justTovjust()`, which branches on it directly and fails with
+#' "missing value where TRUE/FALSE needed", aborting `gridSVG::grid.export()`
+#' from `devGrob.text`. `graphics::pie()` is the case that bites: it labels
+#' every wedge, so before this repair no base R pie chart could be exported at
+#' all -- `pie(..., labels = NA)`, which draws no text, exported fine, which is
+#' what pins the failure on these grobs. `barplot()` and friends are
+#' unaffected because their text grobs already carry a numeric justification.
+#'
+#' Only NA components of text grobs are rewritten, so a grob that already has
+#' a usable justification passes through untouched. 0.5 is exactly what grid
+#' resolves NA to for the `just = "centre"` these grobs declare, so the drawn
+#' output is byte-identical.
+#'
+#' This was an upstream gridSVG/gridGraphics incompatibility rather than
+#' anything maidr introduced. The svglite export leaves justification to grid
+#' and does not need it; it is kept because it changes nothing grid draws and
+#' costs one pass over the tree.
+#'
+#' @param grob A grob, gTree, gList, or gtable (or NULL)
+#' @return The same tree with NA `hjust`/`vjust` on text grobs set to 0.5
+#' @keywords internal
+repair_na_text_justification <- function(grob) {
+  if (is.null(grob)) {
+    return(grob)
+  }
+
+  if (inherits(grob, "text")) {
+    if (!is.null(grob$hjust) && anyNA(grob$hjust)) {
+      grob$hjust[is.na(grob$hjust)] <- 0.5
+    }
+    if (!is.null(grob$vjust) && anyNA(grob$vjust)) {
+      grob$vjust[is.na(grob$vjust)] <- 0.5
+    }
+    return(grob)
+  }
+
+  if (inherits(grob, "gList")) {
+    for (i in seq_along(grob)) {
+      grob[[i]] <- repair_na_text_justification(grob[[i]])
+    }
+    return(grob)
+  }
+
+  if (inherits(grob, "gTree") && !is.null(grob$children)) {
+    for (i in seq_along(grob$children)) {
+      grob$children[[i]] <- repair_na_text_justification(grob$children[[i]])
+    }
+  }
+
+  # Alternative child storage used by gtable and some composite grobs
+  if (!is.null(grob$grobs)) {
+    for (i in seq_along(grob$grobs)) {
+      grob$grobs[[i]] <- repair_na_text_justification(grob$grobs[[i]])
+    }
+  }
+
+  grob
+}
+
+#' Restate a rect grob's negative heights and widths as positive ones
+#'
+#' `gridSVG::grid.export()` warns "number of items to replace is not a
+#' multiple of replacement length" on any rect grob drawn with a negative
+#' height or width, and the warning reaches `save_html()`, where a plot that
+#' warns falls back to a picture.
+#'
+#' Measured on a bare `rectGrob()` with nothing else to it: four rects with
+#' positive heights export silently, and the same four with two heights
+#' negated warn. So this is an upstream gridSVG defect rather than anything
+#' about a particular chart -- but it is reached by an ordinary one.
+#' `assocplot()` draws every tile from a baseline with `just = c("left",
+#' "bottom")` and a signed height, so a cell below expectation is a negative
+#' height by construction (#266); every association plot would warn.
+#'
+#' A rect at `(y, h)` with `h < 0` covers the same pixels as one at
+#' `(y + h, |h|)`, so the drawing is unchanged -- only the arithmetic gridSVG
+#' does with it. The same holds for `x` and a negative width.
+#'
+#' The svglite export draws negative extents correctly; the repair is kept
+#' because it changes nothing drawn.
+#'
+#' @param grob A grob, gTree, gList, or gtable (or NULL)
+#' @return The same tree with every rect's extent stated positively
+#' @keywords internal
+normalise_negative_rects <- function(grob) {
+  if (is.null(grob)) {
+    return(grob)
+  }
+
+  if (inherits(grob, "rect")) {
+    flipped <- flip_negative_extent(
+      grob$y, grob$height, rect_anchor(grob, "vertical")
+    )
+    grob$y <- flipped$position
+    grob$height <- flipped$extent
+    flipped <- flip_negative_extent(
+      grob$x, grob$width, rect_anchor(grob, "horizontal")
+    )
+    grob$x <- flipped$position
+    grob$width <- flipped$extent
+    return(grob)
+  }
+
+  for (field in c("children", "grobs")) {
+    if (!is.null(grob[[field]])) {
+      for (i in seq_along(grob[[field]])) {
+        grob[[field]][[i]] <- normalise_negative_rects(grob[[field]][[i]])
+      }
+    }
+  }
+  if (inherits(grob, "gList")) {
+    for (i in seq_along(grob)) {
+      grob[[i]] <- normalise_negative_rects(grob[[i]])
+    }
+  }
+  grob
+}
+
+#' Clip chartSeries' lower-panel rects to their plot region
+#'
+#' `quantmod::chartSeries()` draws its volume panel (`addVo()`) as bars from
+#' zero, in a panel whose y range starts near the smallest volume, and leaves
+#' R to clip them to the plot region, as base graphics do by default. The
+#' tree `gridGraphics::grid.echo()` rebuilds from that drawing places those
+#' bars in `graphics-plot-<N>`, which does not clip, rather than in the
+#' `graphics-plot-<N>-clip` viewport it builds beside it, so every bar ran on
+#' past the panel's lower border into the date labels.
+#'
+#' Each rect of a panel below the first is moved into that panel's `-clip`
+#' viewport, when the tree has one. The rect keeps its name, so its element
+#' id, and the selectors built from it, are unchanged; only the viewport
+#' groups around it are named after the clipping viewport, and the export
+#' clips them as R clipped the drawing. The price panel is left alone: its
+#' candles lie within its range.
+#'
+#' @param grob A grob, gTree, gList, or gtable (or NULL)
+#' @return The same tree with lower-panel rects in their clipping viewport
+#' @keywords internal
+clip_chartseries_panel_rects <- function(grob) {
+  if (is.null(grob)) {
+    return(grob)
+  }
+  clip_paths <- collect_viewport_paths(grob)
+  clip_paths <- clip_paths[grepl("graphics-plot-[0-9]+-clip::", clip_paths)]
+  if (length(clip_paths) == 0L) {
+    return(grob)
+  }
+
+  move <- function(g) {
+    if (inherits(g, "rect") && inherits(g$vp, "vpPath")) {
+      panel <- sub("^graphics-plot-([0-9]+)-rect-[0-9]+$", "\\1", g$name)
+      if (!identical(panel, g$name) && as.integer(panel) >= 2L) {
+        parts <- strsplit(as.character(g$vp), "::", fixed = TRUE)[[1]]
+        n <- length(parts)
+        if (n >= 2L && identical(parts[[n - 1L]], paste0("graphics-plot-", panel))) {
+          parts[[n - 1L]] <- paste0(parts[[n - 1L]], "-clip")
+          if (paste(parts, collapse = "::") %in% clip_paths) {
+            g$vp <- do.call(grid::vpPath, as.list(parts))
+          }
+        }
+      }
+      return(g)
+    }
+    for (field in c("children", "grobs")) {
+      if (!is.null(g[[field]])) {
+        for (i in seq_along(g[[field]])) {
+          g[[field]][[i]] <- move(g[[field]][[i]])
+        }
+      }
+    }
+    if (inherits(g, "gList")) {
+      for (i in seq_along(g)) {
+        g[[i]] <- move(g[[i]])
+      }
+    }
+    g
+  }
+  move(grob)
+}
+
+#' The full paths of the viewports a grob tree defines
+#'
+#' @param grob A grob, gTree, gList, or gtable
+#' @return Character vector of `"a::b::c"` paths, from every `childrenvp`
+#' @keywords internal
+collect_viewport_paths <- function(grob) {
+  paths <- character(0)
+  walk_vp <- function(vp, prefix) {
+    if (inherits(vp, "vpTree")) {
+      parent <- walk_vp(vp$parent, prefix)
+      for (child in vp$children) {
+        walk_vp(child, parent)
+      }
+      return(parent)
+    }
+    if (inherits(vp, c("vpList", "vpStack"))) {
+      here <- prefix
+      for (child in vp) {
+        last <- walk_vp(child, if (inherits(vp, "vpStack")) here else prefix)
+        if (inherits(vp, "vpStack")) here <- last
+      }
+      return(here)
+    }
+    if (inherits(vp, "viewport")) {
+      path <- if (nzchar(prefix)) paste(prefix, vp$name, sep = "::") else vp$name
+      paths <<- c(paths, path)
+      return(path)
+    }
+    prefix
+  }
+  walk_grob <- function(g) {
+    if (is.null(g)) {
+      return(invisible())
+    }
+    if (!is.null(g$childrenvp)) {
+      walk_vp(g$childrenvp, "")
+    }
+    for (field in c("children", "grobs")) {
+      for (child in g[[field]]) walk_grob(child)
+    }
+    if (inherits(g, "gList")) {
+      for (child in g) walk_grob(child)
+    }
+  }
+  walk_grob(grob)
+  unique(paths)
+}
+
+#' Where a rect grob is anchored on one axis, as a fraction
+#'
+#' A `rectGrob()` keeps its justification in `just` and leaves `hjust` /
+#' `vjust` NULL unless the caller wrote them, so neither field alone answers
+#' the question. `just` may be a keyword, a number, or a length-two vector of
+#' either; absent, `grid`'s own default is `"centre"`.
+#'
+#' Anything unrecognised answers 0.5, the default -- an anchor this cannot
+#' read is one it should not move.
+#'
+#' @param grob A rect grob
+#' @param axis `"horizontal"` or `"vertical"`
+#' @return The anchor as a fraction: 0 is the low edge, 1 the high one
+#' @keywords internal
+rect_anchor <- function(grob, axis) {
+  explicit <- if (identical(axis, "vertical")) grob$vjust else grob$hjust
+  if (!is.null(explicit) && length(explicit) > 0 && !anyNA(explicit)) {
+    return(as.numeric(explicit)[1])
+  }
+
+  just <- grob$just
+  if (is.null(just) || length(just) == 0) {
+    return(0.5)
+  }
+  if (is.numeric(just)) {
+    # A length-two numeric is c(hjust, vjust); a single one applies to both.
+    index <- if (length(just) >= 2 && identical(axis, "vertical")) 2L else 1L
+    return(as.numeric(just)[index])
+  }
+
+  keywords <- if (identical(axis, "vertical")) {
+    c(bottom = 0, centre = 0.5, center = 0.5, top = 1)
+  } else {
+    c(left = 0, centre = 0.5, center = 0.5, right = 1)
+  }
+  named <- keywords[as.character(just)]
+  named <- named[!is.na(named)]
+  if (length(named) == 0) 0.5 else as.numeric(named)[1]
+}
+
+#' Move a rect's anchor so its extent can be stated positively
+#'
+#' Only rects anchored at the low edge are touched. A centred or
+#' high-anchored rect with a negative extent covers a different span, and
+#' moving its anchor would move the rectangle rather than restate it -- so
+#' those are left as they are, warning and all, rather than silently redrawn
+#' somewhere else.
+#'
+#' @param position The rect's `x` or `y`, as a unit
+#' @param extent The rect's `width` or `height`, as a unit
+#' @param anchor Where the rect is anchored on this axis, from
+#'   [rect_anchor()]: 0 is the low edge
+#' @return List with the restated `position` and `extent`
+#' @keywords internal
+flip_negative_extent <- function(position, extent, anchor) {
+  if (is.null(position) || is.null(extent)) {
+    return(list(position = position, extent = extent))
+  }
+  values <- tryCatch(as.numeric(extent), error = function(e) NULL)
+  if (is.null(values) || !any(values < 0, na.rm = TRUE)) {
+    return(list(position = position, extent = extent))
+  }
+  if (!isTRUE(all.equal(anchor, 0))) {
+    return(list(position = position, extent = extent))
+  }
+
+  negative <- !is.na(values) & values < 0
+  # `grid` recycles a shorter position across the rects, so a single `y` with
+  # several heights has to be expanded before it can be subscripted -- the
+  # very mismatch this repair exists to head off.
+  if (length(position) < length(values)) {
+    position <- rep(position, length.out = length(values))
+  }
+  # `+` and `abs` on units keep the unit each value was written in, so a rect
+  # given in "native" stays native and one in "npc" stays npc.
+  position[negative] <- position[negative] + extent[negative]
+  extent[negative] <- abs(extent[negative])
+  list(position = position, extent = extent)
+}
+
+
+#' Split a vectorised `curve` grob into one curve per row
+#'
+#' `geom_curve()` draws every row of its layer as a single `curve` grob whose
+#' positions *and* whose `gp` are vectors -- measured on ggplot2 3.4.4, a
+#' four-row layer arrives as `GRID.curve.1` with `x1`, `y1`, `x2`, `y2` and
+#' `gp$col`, `gp$fill`, `gp$lwd`, `gp$lty` all of length 4. `gridSVG`'s
+#' `svgStyleAttributes()` rejects that outright --
+#' "All SVG style attribute values must have length 1" -- so
+#' `gridSVG::grid.export()` aborts on the whole plot and no curve chart could
+#' be read at all (#195).
+#'
+#' A `segments` grob is equally vectorised and exports fine, because gridSVG
+#' has a method that splits it into one element per segment. There is no such
+#' method for `curve`, so the split is done here instead: each row becomes its
+#' own `curve` grob carrying its own slice of the gpar, gathered under a gTree
+#' keeping the original's name. The drawing is unchanged -- every row is drawn
+#' with exactly the styling it had -- and the export gains one element per
+#' row, which is what a gantt's selectors address.
+#'
+#' Slicing rather than scalarising is the point. Taking `gp[[1]]` would also
+#' satisfy gridSVG and is visibly wrong: measured on a layer coloured by a
+#' third column, the four rows export as `rgb(248,118,109)`, `rgb(0,186,56)`,
+#' `rgb(97,156,255)` and `rgb(0,186,56)`, so collapsing to the first would
+#' paint the whole layer red.
+#'
+#' This was an upstream gridSVG gap rather than anything maidr introduced.
+#' The svglite export draws a vectorised curve as it is, but the split stays:
+#' the element per row it gives is what a gantt's selectors address.
+#'
+#' @param grob A grob, gTree, gList, or gtable (or NULL)
+#' @return The same tree with every multi-row `curve` grob split row-wise
+#' @keywords internal
+split_vectorised_curve_grobs <- function(grob) {
+  if (is.null(grob)) {
+    return(grob)
+  }
+
+  if (inherits(grob, "curve")) {
+    return(split_one_curve(grob))
+  }
+
+  if (inherits(grob, "gList")) {
+    for (i in seq_along(grob)) {
+      grob[[i]] <- split_vectorised_curve_grobs(grob[[i]])
+    }
+    return(grob)
+  }
+
+  if (inherits(grob, "gTree") && !is.null(grob$children)) {
+    for (i in seq_along(grob$children)) {
+      grob$children[[i]] <- split_vectorised_curve_grobs(grob$children[[i]])
+    }
+  }
+
+  # Alternative child storage used by gtable and some composite grobs
+  if (!is.null(grob$grobs)) {
+    for (i in seq_along(grob$grobs)) {
+      grob$grobs[[i]] <- split_vectorised_curve_grobs(grob$grobs[[i]])
+    }
+  }
+
+  grob
+}
+
+#' One curve grob per row of a vectorised one
+#'
+#' Recycling is by position, which is grid's own rule for a gpar shorter than
+#' the positions it styles, so a layer given one colour for four rows keeps
+#' that colour on all four rather than losing three of them.
+#'
+#' A single-row curve is returned untouched: it already satisfies gridSVG, and
+#' wrapping it would change the element id its selector is built from.
+#'
+#' @param curve A `curve` grob
+#' @return A gTree of one curve per row, or the grob itself when it has one row
+#' @keywords internal
+split_one_curve <- function(curve) {
+  positions <- c("x1", "y1", "x2", "y2")
+  rows <- max(vapply(positions, function(f) length(curve[[f]]), integer(1)))
+  if (rows <= 1L) {
+    return(curve)
+  }
+
+  pick <- function(values, index) {
+    # `[` rather than `[[`: the positions are grid units, and `[` is the
+    # accessor that returns a unit of length one rather than a bare number.
+    if (length(values) <= 1L) values else values[((index - 1L) %% length(values)) + 1L]
+  }
+
+  children <- lapply(seq_len(rows), function(index) {
+    one <- curve
+    for (field in positions) {
+      one[[field]] <- pick(one[[field]], index)
+    }
+    if (!is.null(one$gp)) {
+      for (key in names(one$gp)) {
+        one$gp[[key]] <- pick(one$gp[[key]], index)
+      }
+    }
+    one$name <- paste0(curve$name, ".", index)
+    # The viewport moves to the wrapper and off the children. Left on both it
+    # would be pushed twice -- once for the gTree and once again inside it --
+    # which nests a relative viewport inside itself and shrinks the drawing.
+    # ggplot2's own curve grobs carry none, so this is a property of the split
+    # rather than a repair of an observed failure, and is asserted directly.
+    one$vp <- NULL
+    one
+  })
+
+  grid::gTree(
+    children = do.call(grid::gList, children),
+    name = curve$name,
+    vp = curve$vp
+  )
 }
 
 #' Inject svg_x/svg_y coordinates into violin_kde layer data
@@ -118,9 +569,17 @@ create_enhanced_svg <- function(gt, maidr_data, ...) {
 #' navigates to the panel viewport, maps data coordinates to SVG points,
 #' and injects `svg_x`/`svg_y` into each ViolinKdePoint.  Temporary
 #' metadata fields (`.panel_x_range`, `.panel_y_range`, `.is_horizontal`,
-#' `data_left_x`, `data_right_x`, `data_y`) are stripped from the output.
+#' `.panel_index`, `.panel_name`, `data_left_x`, `data_right_x`, `data_y`) are
+#' stripped from the output.
 #'
-#' @param gt The gtable object (used to find the panel viewport name)
+#' Each violin_kde layer is mapped through the viewport of the panel it was
+#' extracted from, so a violin inside a patchwork gets its own panel's
+#' coordinates rather than the first panel's. Nested compositions repeat panel
+#' names across levels, so the layer's `.panel_index` (its position in
+#' [collect_gtable_panels()], which matches [find_patchwork_panels()]) is the
+#' primary key and the name is only a fallback.
+#'
+#' @param gt The gtable object (used to find the panel viewport paths)
 #' @param maidr_data The maidr-data structure (modified in place)
 #' @return Updated maidr_data with svg_x/svg_y injected
 #' @keywords internal
@@ -128,32 +587,77 @@ inject_violin_kde_svg_coords <- function(gt, maidr_data) {
   # Find violin_kde layers in the maidr_data structure
   if (is.null(maidr_data$subplots)) return(maidr_data)
 
-  # Find the panel viewport name from the gtable layout
-  panel_idx <- which(gt$layout$name == "panel")
-  if (length(panel_idx) == 0) return(maidr_data)
-  panel_layout <- gt$layout[panel_idx[1], ]
-  vp_name <- sprintf(
-    "panel.%d-%d-%d-%d",
-    panel_layout$t, panel_layout$l, panel_layout$b, panel_layout$r
+  # Filtered exactly as find_patchwork_panels() filters, because
+  # `.panel_index` is a position in THAT list. Collecting a wider set here
+  # would shift every index by however many extra cells matched.
+  panels <- Filter(
+    function(p) grepl("^panel-\\d+(-\\d+)?$", p$name),
+    collect_gtable_panels(gt)
+  )
+  single_panel <- Filter(
+    function(p) identical(p$name, "panel"),
+    collect_gtable_panels(gt)
   )
 
-  # Navigate to the panel viewport to get device coordinate mapping
-  tryCatch(
-    grid::downViewport(vp_name),
-    error = function(e) {
-      return(maidr_data)
+  # Resolve the viewport path for one layer's panel.
+  panel_vp_path <- function(layer) {
+    idx <- layer$.panel_index
+    if (
+      length(idx) == 1L && is.numeric(idx) && !is.na(idx) &&
+        idx >= 1 && idx <= length(panels)
+    ) {
+      return(panels[[idx]]$vp_path)
     }
-  )
+    if (!is.null(layer$.panel_name)) {
+      for (p in panels) {
+        if (identical(p$name, layer$.panel_name)) return(p$vp_path)
+      }
+    }
+    # Single plot: the one cell literally named "panel"
+    if (length(single_panel) > 0) {
+      return(single_panel[[1]]$vp_path)
+    }
+    NULL
+  }
 
-  # Get absolute device position of panel corners (inches from device origin)
-  loc0 <- grid::deviceLoc(grid::unit(0, "npc"), grid::unit(0, "npc"))
-  loc1 <- grid::deviceLoc(grid::unit(1, "npc"), grid::unit(1, "npc"))
-  dx0 <- as.numeric(loc0$x)
-  dy0 <- as.numeric(loc0$y)
-  dx1 <- as.numeric(loc1$x)
-  dy1 <- as.numeric(loc1$y)
-
-  grid::upViewport(0)
+  # Device corners of a panel, in inches from the device origin. Navigating
+  # costs a viewport walk per panel, so results are memoised; NA marks a
+  # panel that could not be reached, which must not be retried.
+  corner_cache <- list()
+  panel_corners <- function(vp_path) {
+    key <- paste(vp_path, collapse = "\r")
+    if (!is.null(corner_cache[[key]])) {
+      hit <- corner_cache[[key]]
+      return(if (identical(hit, NA)) NULL else hit)
+    }
+    vp <- if (length(vp_path) == 1L) {
+      vp_path
+    } else {
+      do.call(grid::vpPath, as.list(vp_path))
+    }
+    # NOTE: return() inside a tryCatch handler only exits the handler, so
+    # the success flag must be checked explicitly.
+    navigated <- tryCatch(
+      {
+        grid::downViewport(vp)
+        TRUE
+      },
+      error = function(e) FALSE
+    )
+    if (!navigated) {
+      corner_cache[[key]] <<- NA
+      return(NULL)
+    }
+    loc0 <- grid::deviceLoc(grid::unit(0, "npc"), grid::unit(0, "npc"))
+    loc1 <- grid::deviceLoc(grid::unit(1, "npc"), grid::unit(1, "npc"))
+    grid::upViewport(0)
+    corners <- list(
+      x0 = as.numeric(loc0$x), y0 = as.numeric(loc0$y),
+      x1 = as.numeric(loc1$x), y1 = as.numeric(loc1$y)
+    )
+    corner_cache[[key]] <<- corners
+    corners
+  }
 
   # Walk subplots looking for violin_kde layers
   for (row_idx in seq_along(maidr_data$subplots)) {
@@ -166,6 +670,15 @@ inject_violin_kde_svg_coords <- function(gt, maidr_data) {
         layer <- cell$layers[[layer_idx]]
         if (!identical(layer$type, "violin_kde")) next
         if (is.null(layer$.panel_x_range) || is.null(layer$.panel_y_range)) next
+
+        vp_path <- panel_vp_path(layer)
+        if (is.null(vp_path)) next
+        corners <- panel_corners(vp_path)
+        if (is.null(corners)) next
+        dx0 <- corners$x0
+        dy0 <- corners$y0
+        dx1 <- corners$x1
+        dy1 <- corners$y1
 
         x_range <- layer$.panel_x_range
         y_range <- layer$.panel_y_range
@@ -219,8 +732,8 @@ inject_violin_kde_svg_coords <- function(gt, maidr_data) {
           }
           # Sort points along the value axis for smooth keyboard navigation.
           # ViolinKdeTrace uses point order directly as the navigation order.
-          #   Vertical:   value axis = Y → sort by svg_y (bottom-to-top)
-          #   Horizontal: value axis = X → sort by svg_x (left-to-right)
+          #   Vertical:   value axis = Y -> sort by svg_y (bottom-to-top)
+          #   Horizontal: value axis = X -> sort by svg_x (left-to-right)
           sort_vals <- if (is_horizontal) {
             vapply(points, function(p) {
               if (!is.null(p$svg_x)) p$svg_x else NA_real_
@@ -237,10 +750,60 @@ inject_violin_kde_svg_coords <- function(gt, maidr_data) {
           }
         }
 
-        # Strip layer-level metadata
+        cell$layers[[layer_idx]] <- layer
+      }
+      row[[cell_idx]] <- cell
+    }
+    maidr_data$subplots[[row_idx]] <- row
+  }
+
+  # Unconditional: every `next` above leaves a layer's internal fields in
+  # place, and none of them may reach the emitted JSON. Idempotent with the
+  # points already rewritten in the success path.
+  strip_violin_kde_metadata(maidr_data)
+}
+
+#' Strip internal violin_kde metadata without coordinate injection
+#'
+#' Removes the temporary fields (`.panel_x_range`, `.panel_y_range`,
+#' `.is_horizontal`, `.panel_index`, `.panel_name`, `data_left_x`,
+#' `data_right_x`, `data_y`) that must never appear in the serialized
+#' maidr-data JSON. Called unconditionally after coordinate injection, so a
+#' layer whose panel viewport could not be navigated still comes out clean.
+#'
+#' @param maidr_data The maidr-data structure
+#' @return Cleaned maidr_data
+#' @keywords internal
+strip_violin_kde_metadata <- function(maidr_data) {
+  if (is.null(maidr_data$subplots)) return(maidr_data)
+
+  for (row_idx in seq_along(maidr_data$subplots)) {
+    row <- maidr_data$subplots[[row_idx]]
+    for (cell_idx in seq_along(row)) {
+      cell <- row[[cell_idx]]
+      if (is.null(cell$layers)) next
+
+      for (layer_idx in seq_along(cell$layers)) {
+        layer <- cell$layers[[layer_idx]]
+        if (!identical(layer$type, "violin_kde")) next
+
         layer$.panel_x_range <- NULL
         layer$.panel_y_range <- NULL
         layer$.is_horizontal <- NULL
+        layer$.panel_index <- NULL
+        layer$.panel_name <- NULL
+
+        for (group_idx in seq_along(layer$data)) {
+          points <- layer$data[[group_idx]]
+          for (pt_idx in seq_along(points)) {
+            pt <- points[[pt_idx]]
+            pt$data_left_x <- NULL
+            pt$data_right_x <- NULL
+            pt$data_y <- NULL
+            points[[pt_idx]] <- pt
+          }
+          layer$data[[group_idx]] <- points
+        }
 
         cell$layers[[layer_idx]] <- layer
       }
@@ -290,6 +853,27 @@ inject_candlestick_open_close <- function(svg_content, maidr_data) {
   )
   if (is.null(svg_doc)) {
     return(svg_content)
+  }
+
+  if (!inject_candlestick_open_close_doc(svg_doc, maidr_data)) {
+    return(svg_content)
+  }
+
+  strsplit(as.character(svg_doc), "\n")[[1]]
+}
+
+#' Document-level implementation of [inject_candlestick_open_close()]
+#'
+#' Mutates `svg_doc` in place (xml2 documents are references).
+#'
+#' @param svg_doc Parsed SVG document (xml2)
+#' @param maidr_data The maidr-data structure
+#' @return TRUE if the document was modified
+#' @keywords internal
+inject_candlestick_open_close_doc <- function(svg_doc, maidr_data) {
+  cs_layers <- collect_candlestick_layers(maidr_data)
+  if (length(cs_layers) == 0) {
+    return(FALSE)
   }
 
   ns <- c(svg = "http://www.w3.org/2000/svg")
@@ -348,8 +932,8 @@ inject_candlestick_open_close <- function(svg_content, maidr_data) {
 
       trend <- layer$data[[i]]$trend
       # In gridSVG's flipped local space, smaller raw y = lower data value.
-      # Bull (close > open): open is the lower edge → y; close → y + h.
-      # Bear (close < open): open is the higher edge → y + h; close → y.
+      # Bull (close > open): open is the lower edge -> y; close -> y + h.
+      # Bear (close < open): open is the higher edge -> y + h; close -> y.
       if (identical(trend, "Bull")) {
         open_y  <- y
         close_y <- y + h
@@ -386,11 +970,7 @@ inject_candlestick_open_close <- function(svg_content, maidr_data) {
     modified <- TRUE
   }
 
-  if (!modified) {
-    return(svg_content)
-  }
-
-  strsplit(as.character(svg_doc), "\n")[[1]]
+  modified
 }
 
 #' Collect all candlestick layers in a maidr_data structure
@@ -439,7 +1019,7 @@ extract_rect_index_from_id <- function(grob_id) {
 #' Reposition chartSeries date-range bracket header to prevent clipping
 #'
 #' `quantmod::chartSeries()` renders a bracketed date-range header
-#' (e.g. "[2024-01-12/2024-01-15]") via base R `title()` with `par(adj=1)`.
+#' (e.g. `"[2024-01-12/2024-01-15]"`) via base R `title()` with `par(adj=1)`.
 #' For short timeseries the text width exceeds the available right margin
 #' and the closing bracket is clipped at the SVG viewBox edge. This is
 #' upstream quantmod issue #129 (open since 2016, no fix). See
@@ -487,16 +1067,30 @@ adjust_chartseries_bracket <- function(svg_content, maidr_data) {
     return(svg_content)
   }
 
+  if (!adjust_chartseries_bracket_doc(svg_doc)) {
+    return(svg_content)
+  }
+  strsplit(as.character(svg_doc), "\n")[[1]]
+}
+
+#' Document-level implementation of [adjust_chartseries_bracket()]
+#'
+#' Mutates `svg_doc` in place.
+#'
+#' @param svg_doc Parsed SVG document (xml2)
+#' @return TRUE if the document was modified
+#' @keywords internal
+adjust_chartseries_bracket_doc <- function(svg_doc) {
   svg_root <- xml2::xml_root(svg_doc)
   viewbox <- xml2::xml_attr(svg_root, "viewBox")
   if (is.na(viewbox)) {
-    return(svg_content)
+    return(FALSE)
   }
   vb_parts <- suppressWarnings(
     as.numeric(strsplit(viewbox, "\\s+")[[1]])
   )
   if (length(vb_parts) < 4L || any(is.na(vb_parts)) || vb_parts[3] <= 0) {
-    return(svg_content)
+    return(FALSE)
   }
   vb_width <- vb_parts[3]
   safe_x <- vb_width * 0.95  # 5% right padding
@@ -515,24 +1109,46 @@ adjust_chartseries_bracket <- function(svg_content, maidr_data) {
   for (node in text_nodes) {
     content <- xml2::xml_text(node)
     if (grepl(bracket_re, content)) {
-      xml2::xml_set_attr(node, "x", format(safe_x, trim = TRUE))
+      # The text is written inside groups that translate it (the export
+      # places each label with `translate(x, y)` and draws it at its
+      # origin), so its own `x` is relative to them: subtract theirs.
+      offset <- sum(vapply(
+        xml2::xml_find_all(node, "ancestor::svg:g[@transform]", ns),
+        function(g) translate_x(xml2::xml_attr(g, "transform")),
+        numeric(1)
+      ))
+      xml2::xml_set_attr(node, "x", format(safe_x - offset, trim = TRUE))
       xml2::xml_set_attr(node, "text-anchor", "end")
       modified <- TRUE
       break  # chartSeries emits at most one bracket header
     }
   }
 
-  if (!modified) {
-    return(svg_content)
+  modified
+}
+
+#' The x offset of an SVG `translate()` transform
+#'
+#' @param transform The `transform` attribute value
+#' @return The first `translate()`'s x, or 0 when there is none
+#' @keywords internal
+translate_x <- function(transform) {
+  m <- regmatches(
+    transform,
+    regexec("translate\\(\\s*([-+0-9.eE]+)", transform)
+  )[[1]]
+  if (length(m) < 2L) {
+    return(0)
   }
-  strsplit(as.character(svg_doc), "\n")[[1]]
+  value <- suppressWarnings(as.numeric(m[[2]]))
+  if (is.na(value)) 0 else value
 }
 
 #' Strip the bottom axis line and tick marks from chartSeries candlestick SVG
 #'
 #' quantmod::chartSeries() emits a bottom date axis (axis line, tick
-#' marks, and "Jan 12 2024" labels) via gridSVG. The axis line and
-#' tick marks are drawn slightly off-center from the candles (gridSVG
+#' marks, and "Jan 12 2024" labels). The axis line and
+#' tick marks are drawn slightly off-center from the candles (chartSeries
 #' places ticks at evenly-spaced positions that do not always coincide
 #' with the candle centers), which reads as a visual misalignment.
 #' This helper removes the axis line and tick marks but preserves the
@@ -574,6 +1190,20 @@ strip_chartseries_date_axis <- function(svg_content, maidr_data) {
     return(svg_content)
   }
 
+  if (!strip_chartseries_date_axis_doc(svg_doc)) {
+    return(svg_content)
+  }
+  strsplit(as.character(svg_doc), "\n")[[1]]
+}
+
+#' Document-level implementation of [strip_chartseries_date_axis()]
+#'
+#' Mutates `svg_doc` in place.
+#'
+#' @param svg_doc Parsed SVG document (xml2)
+#' @return TRUE if the document was modified
+#' @keywords internal
+strip_chartseries_date_axis_doc <- function(svg_doc) {
   ns <- c(svg = "http://www.w3.org/2000/svg")
   modified <- FALSE
 
@@ -590,27 +1220,23 @@ strip_chartseries_date_axis <- function(svg_content, maidr_data) {
     }
   }
 
-  if (!modified) {
-    return(svg_content)
-  }
-  strsplit(as.character(svg_doc), "\n")[[1]]
+  modified
 }
 
-#' Strip the right y-axis vertical line from chartSeries candlestick SVG
+#' Strip the right y-axis line and ticks from chartSeries candlestick SVG
 #'
-#' quantmod::chartSeries() draws a right-hand y-axis with a vertical
-#' axis line, tick marks, and numeric price labels (e.g. 101..106).
-#' On sparse OHLC inputs (few candles spread across the plot region),
-#' the right-axis vertical line is positioned within the candle area
-#' and visually overlaps the rightmost candle, reading like a stray
-#' "axis through the middle" of the chart. This helper removes only
-#' the `right-axis-line-*` polyline; the tick marks and the price
-#' labels themselves are preserved so the chart still communicates
-#' the y-axis scale visually.
+#' quantmod::chartSeries() draws a right-hand y-axis (`axis(4)`) with a
+#' vertical axis line, tick marks, and numeric price labels (e.g.
+#' 101..106). In the tree `gridGraphics::grid.echo()` rebuilds from it, the
+#' line and the ticks land inside the plot region, well left of its right
+#' border, reading like a stray "axis through the middle" of the chart,
+#' while the labels stay where R draws them. This helper removes the
+#' `right-axis-line-*` and `right-axis-ticks-*` groups; the price labels
+#' are preserved so the chart still communicates the y-axis scale visually.
 #'
-#' The matched group has an ID of the form
-#' `graphics-plot-N-right-axis-line-...`; matched by substring with
-#' `contains(@id, 'right-axis-line-')`.
+#' The matched groups have IDs of the form
+#' `graphics-plot-N-right-axis-line-...` and
+#' `graphics-plot-N-right-axis-ticks-...`, matched by substring.
 #'
 #' Safety: no-op when `maidr_data` contains no candlestick layers
 #' (ggplot candlestick / non-candlestick plots use different SVG IDs
@@ -641,22 +1267,36 @@ strip_chartseries_right_axis <- function(svg_content, maidr_data) {
     return(svg_content)
   }
 
+  if (!strip_chartseries_right_axis_doc(svg_doc)) {
+    return(svg_content)
+  }
+  strsplit(as.character(svg_doc), "\n")[[1]]
+}
+
+#' Document-level implementation of [strip_chartseries_right_axis()]
+#'
+#' Mutates `svg_doc` in place.
+#'
+#' @param svg_doc Parsed SVG document (xml2)
+#' @return TRUE if the document was modified
+#' @keywords internal
+strip_chartseries_right_axis_doc <- function(svg_doc) {
   ns <- c(svg = "http://www.w3.org/2000/svg")
   modified <- FALSE
 
-  # Strip only the right-axis vertical line; keep the ticks and the
-  # numeric price labels so the y-scale remains visible to sighted users.
-  xpath <- "//svg:g[contains(@id, 'right-axis-line-')]"
+  # Strip the misplaced right-axis line and ticks; keep the numeric price
+  # labels so the y-scale remains visible to sighted users.
+  xpath <- paste0(
+    "//svg:g[contains(@id, 'right-axis-line-') or ",
+    "contains(@id, 'right-axis-ticks-')]"
+  )
   nodes <- xml2::xml_find_all(svg_doc, xpath, ns)
   if (length(nodes) > 0L) {
     xml2::xml_remove(nodes)
     modified <- TRUE
   }
 
-  if (!modified) {
-    return(svg_content)
-  }
-  strsplit(as.character(svg_doc), "\n")[[1]]
+  modified
 }
 
 #' Add maidr-data to SVG using proper XML manipulation
@@ -665,12 +1305,6 @@ strip_chartseries_right_axis <- function(svg_content, maidr_data) {
 #' @return Modified SVG content
 #' @keywords internal
 add_maidr_data_to_svg <- function(svg_content, maidr_data) {
-  # `na = "null"` ensures NA y-values (e.g. the leading rows of an SMA
-  # moving-average line) serialize to JSON `null` rather than the string
-  # `"NA"`, which `Number(point.y)` in the maidr JS frontend would coerce
-  # to NaN and treat as a parse error.
-  maidr_json <- jsonlite::toJSON(maidr_data, auto_unbox = TRUE, na = "null")
-
   if (!requireNamespace("xml2", quietly = TRUE)) {
     stop(
       "The 'xml2' package is required for SVG manipulation. ",
@@ -681,11 +1315,278 @@ add_maidr_data_to_svg <- function(svg_content, maidr_data) {
   svg_text <- paste(svg_content, collapse = "\n")
   svg_doc <- xml2::read_xml(svg_text)
 
-  xml2::xml_attr(svg_doc, "maidr-data") <- maidr_json
+  set_maidr_data_attr(svg_doc, maidr_data)
 
   svg_content <- strsplit(as.character(svg_doc), "\n")[[1]]
 
   svg_content
+}
+
+#' Drop `selectors` entries that carry no selector
+#'
+#' A layer that resolved no highlight target must say so by OMITTING the key,
+#' never by sending an empty list. The frontend hands `layer.selectors`
+#' straight to `document.querySelectorAll()`, and an empty array stringifies
+#' to `""`, which is a `SyntaxError` -- thrown inside the trace constructor,
+#' so the whole figure fails to initialise: no announcement, no sonification,
+#' no braille, no keyboard entry, on a chart that still looks fine. An absent
+#' key is falsy and takes the frontend's own "no selectors" path instead.
+#'
+#' Applied here rather than in each processor because every payload passes
+#' through this one point, and `list()` is the honest return value for a
+#' processor whose grob lookup found nothing.
+#'
+#' @param node A maidr-data node (list, or a leaf)
+#' @return The node with empty `selectors` entries removed
+#' @keywords internal
+drop_empty_selectors <- function(node) {
+  if (!is.list(node)) {
+    return(node)
+  }
+  # An empty BoxSelector object is still a real selector spec, so only a
+  # zero-length `selectors` is dropped -- not one whose entries are empty.
+  has_empty_selectors <- !is.null(names(node)) &&
+    "selectors" %in% names(node) &&
+    length(node$selectors) == 0
+  if (has_empty_selectors) {
+    node$selectors <- NULL
+  }
+  if (length(node) == 0) {
+    return(node)
+  }
+  node[] <- lapply(node, drop_empty_selectors)
+  node
+}
+
+#' Layer types whose frontend model reads `selectors` as ONE selector for
+#' every mark
+#'
+#' In maidr.js 4.x the shape of `selectors` is a contract, not a
+#' convenience. A plain string is handed to `document.querySelectorAll()`
+#' and the matches are aligned to the layer's points in document order. An
+#' ARRAY means something else for these types: one selector per data point
+#' for `bar` and `hist` (`src/model/bar.ts`), a per-series grid for the
+#' segmented bars and `mosaic` (`src/model/segmented.ts`), and nothing at all
+#' for `point` and `pie`, whose models read `layer.selectors as string`
+#' (`src/model/scatter.ts`, `src/model/pie.ts`). `dot` and `lollipop` are
+#' built by the `bar` model; `heat` reads a string or a per-cell grid
+#' (`src/model/heatmap.ts`). maidr.js 3.x read a one-element array as the
+#' string it held, which is why every processor here that returns
+#' `list(selector)` was fine until the bundle moved to 4.0 (#316).
+#'
+#' Types NOT listed keep whatever shape their processor built, because their
+#' models want the array: one selector per series for `line`, `smooth`,
+#' `step`, `area`, `roc` and `violin_kde`, one per level for `contour`, one
+#' per box for `box` and `violin_box`, one per tick for a rug, and `error_bar`,
+#' `gantt`, `word_cloud` and `candlestick` accept either.
+#'
+#' @keywords internal
+SINGLE_SELECTOR_LAYER_TYPES <- c(
+  "bar", "hist", "dot", "lollipop",
+  "point",
+  "pie",
+  "dodged_bar", "stacked_bar", "stacked_normalized_bar", "mosaic",
+  "heat"
+)
+
+#' Collapse a layer's selector list into the one string its type is read as
+#'
+#' Every processor builds `selectors` with `list()` or `lapply()`, so even a
+#' single CSS selector reaches `jsonlite::toJSON()` as a list of one, and
+#' `auto_unbox = TRUE` cannot unbox a list: the payload says
+#' `"selectors": ["#geom_rect\\.rect\\.2\\.1 rect"]`. maidr.js 4.x reads that
+#' array as one selector per data point, resolves it to one element for
+#' seven bars, and declines the whole layer -- navigation and speech keep
+#' working while nothing on the chart ever changes colour (#316). Measured
+#' in headless Chromium against the bundled 4.9.0: ggplot2 bar, point,
+#' histogram, dodged, stacked and pie, and Base R `barplot()`, `hist()`,
+#' `plot()` and `pie()`, all announced their values and drew no highlight;
+#' rewriting only the JSON to a string restored every one of them.
+#'
+#' For a layer whose type is in [SINGLE_SELECTOR_LAYER_TYPES], a flat
+#' character vector or list of strings becomes one string. Several entries
+#' are joined with `", "`: a selector list, which `querySelectorAll()`
+#' resolves in document order -- the same order the layer's points are in,
+#' since a processor that names several containers (Base R `pie()` draws
+#' one polygon grob per wedge) walks them in drawing order. Nested lists (a
+#' per-cell grid), named objects (`BoxSelector`) and anything not made of
+#' strings are left exactly as they are, and so is every other layer type.
+#'
+#' Applied where [drop_empty_selectors()] is, and for the same reason:
+#' every payload passes through this one point, the processors are honest
+#' about what they found, and the shape the frontend reads is decided once,
+#' against the bundle actually shipped, where a future bundle bump has one
+#' place to look.
+#'
+#' @param node A maidr-data node (list, or a leaf)
+#' @return The node with single-selector layers carrying a string
+#' @keywords internal
+flatten_single_selectors <- function(node) {
+  if (!is.list(node)) {
+    return(node)
+  }
+  is_layer <- !is.null(names(node)) &&
+    all(c("type", "selectors") %in% names(node)) &&
+    is.character(node$type) && length(node$type) == 1L
+  if (is_layer && node$type %in% SINGLE_SELECTOR_LAYER_TYPES) {
+    node$selectors <- join_selector_list(node$selectors)
+  }
+  if (length(node) == 0) {
+    return(node)
+  }
+  node[] <- lapply(node, flatten_single_selectors)
+  node
+}
+
+#' One string from a flat list of selectors, or the input untouched
+#'
+#' @param selectors A layer's `selectors` entry
+#' @return A single string when `selectors` is a flat, unnamed collection of
+#'   non-empty strings; otherwise `selectors` as given
+#' @keywords internal
+join_selector_list <- function(selectors) {
+  entries <- if (is.character(selectors)) {
+    as.list(selectors)
+  } else if (is.list(selectors) && is.null(names(selectors))) {
+    selectors
+  } else {
+    list()
+  }
+  if (length(entries) == 0) {
+    return(selectors)
+  }
+  is_selector <- function(entry) {
+    is.character(entry) && length(entry) == 1L && !is.na(entry) && nzchar(entry)
+  }
+  if (!all(vapply(entries, is_selector, logical(1)))) {
+    return(selectors)
+  }
+  paste(unlist(entries, use.names = FALSE), collapse = ", ")
+}
+
+#' Hand `jsonlite` each run of flat records as a data frame
+#'
+#' A layer's `data` is usually one small named list per point, and
+#' `jsonlite::toJSON()` serializes a list element by element through S4
+#' dispatch: 10,000 points took 2 s of a 5 s ggplot2 render, more than the
+#' SVG export. A data frame with the same columns is serialized row-wise in
+#' one vectorised pass and yields byte-identical JSON under the options
+#' [set_maidr_data_attr()] uses (`auto_unbox`, `na = "null"`, `digits = NA`),
+#' in about a hundredth of the time.
+#'
+#' Only a run that is certain to serialize identically is converted: an
+#' unnamed list of named lists that all have the same field names in the
+#' same order, each field one attribute-free logical, integer, double or
+#' character value of the same type in every record. Anything else -- a
+#' nested value, a ragged or mixed-type field, a factor or date, a
+#' zero-length value (which serializes as `[]`, not `null`) -- is left as a
+#' list and recursed into, so the output never changes, only its cost.
+#'
+#' @param node A maidr-data node (list, or a leaf)
+#' @return The node with record runs replaced by data frames
+#' @keywords internal
+records_as_frames <- function(node) {
+  if (!is.list(node) || is.data.frame(node) || length(node) == 0) {
+    return(node)
+  }
+  if (is_record_run(node)) {
+    fields <- names(node[[1]])
+    columns <- lapply(fields, function(field) {
+      unlist(lapply(node, .subset2, field), use.names = FALSE)
+    })
+    names(columns) <- fields
+    return(structure(
+      columns,
+      class = "data.frame",
+      row.names = .set_row_names(length(node))
+    ))
+  }
+  node[] <- lapply(node, records_as_frames)
+  node
+}
+
+#' Whether a list is a run of flat, uniformly typed records
+#'
+#' The first record sets the field names and types every other record must
+#' match exactly.
+#'
+#' @param node A non-empty list
+#' @return `TRUE` when [records_as_frames()] may convert `node`
+#' @keywords internal
+is_record_run <- function(node) {
+  first <- node[[1]]
+  if (!is.null(names(node)) || !is.list(first)) {
+    return(FALSE)
+  }
+  fields <- names(first)
+  types <- vapply(first, typeof, character(1), USE.NAMES = FALSE)
+  if (!is_record_schema(fields, types)) {
+    return(FALSE)
+  }
+  all(vapply(node, is_flat_record, logical(1), fields = fields, types = types))
+}
+
+#' Whether the first record's fields can become data frame columns
+#'
+#' Each field becomes one column, so the names must be unique and non-empty
+#' and every type one that a column can hold a scalar of.
+#'
+#' @param fields The first record's names
+#' @param types The first record's field types
+#' @return `TRUE` for unique, non-empty names over scalar-capable types
+#' @keywords internal
+is_record_schema <- function(fields, types) {
+  length(fields) > 0 &&
+    !anyNA(fields) &&
+    all(nzchar(fields)) &&
+    !anyDuplicated(fields) &&
+    all(types %in% c("logical", "integer", "double", "character"))
+}
+
+#' Whether one record matches the run's fields and types exactly
+#'
+#' @param record A candidate record
+#' @param fields The run's field names, in order
+#' @param types The run's field types, in order
+#' @return `TRUE` when every field is one attribute-free value of its type
+#' @keywords internal
+is_flat_record <- function(record, fields, types) {
+  is.list(record) &&
+    identical(attributes(record), list(names = fields)) &&
+    all(lengths(record, use.names = FALSE) == 1L) &&
+    identical(vapply(record, typeof, character(1), USE.NAMES = FALSE), types) &&
+    all(vapply(record, function(value) is.null(attributes(value)), logical(1)))
+}
+
+#' Serialize maidr_data and set it as the SVG root's maidr-data attribute
+#'
+#' Mutates `svg_doc` in place.
+#'
+#' @param svg_doc Parsed SVG document (xml2)
+#' @param maidr_data The maidr-data structure
+#' @return NULL (invisible)
+#' @keywords internal
+set_maidr_data_attr <- function(svg_doc, maidr_data) {
+  maidr_data <- drop_empty_selectors(maidr_data)
+  maidr_data <- flatten_single_selectors(maidr_data)
+
+  # `na = "null"` ensures NA y-values (e.g. the leading rows of an SMA
+  # moving-average line) serialize to JSON `null` rather than the string
+  # `"NA"`, which `Number(point.y)` in the maidr JS frontend would coerce
+  # to NaN and treat as a parse error.
+  # `digits = NA` keeps full numeric precision: jsonlite's default of 4
+  # decimal digits silently rounds data values (0.123456 -> 0.1235) in
+  # the announced output.
+  maidr_json <- jsonlite::toJSON(
+    records_as_frames(maidr_data),
+    auto_unbox = TRUE,
+    na = "null",
+    digits = NA
+  )
+
+  xml2::xml_attr(svg_doc, "maidr-data") <- maidr_json
+
+  invisible(NULL)
 }
 
 #' Create HTML document with dependencies
@@ -706,7 +1607,7 @@ create_html_document <- function(svg_content, use_cdn = NULL) {
   # The wrapping <div class="maidr-page"> together with the
   # `maidr_responsive_dependency()` injection below provides a viewport
   # meta tag and CSS that center the SVG and let it scale fluidly with
-  # the browser window. Without this, gridSVG's fixed-px width/height
+  # the browser window. Without this, the exported SVG's fixed-px width/height
   # on the <svg> leaves the chart pinned at its intrinsic 720x360
   # rendering size, producing the "tiny chart in the upper-left of a
   # huge empty page" appearance reported for base R candlestick output.
@@ -715,10 +1616,15 @@ create_html_document <- function(svg_content, use_cdn = NULL) {
     htmltools::HTML(paste(svg_content, collapse = "\n"))
   )
 
+  # A downloaded DotPad SDK rides along in `lib/` with the bundle when the
+  # document is going offline, ahead of the bundle like the URL globals are;
+  # NULL, and dropped, for everyone else. Only here and not in the widget:
+  # a self-contained knitr document keeps no `lib/` for the copy to live in.
   html_doc <- htmltools::attachDependencies(
     html_doc,
     c(
       list(maidr_responsive_dependency()),
+      Filter(Negate(is.null), list(maidr_dotpad_local_dependency(use_cdn))),
       maidr_html_dependencies(use_cdn = use_cdn)
     )
   )
@@ -756,8 +1662,8 @@ maidr_responsive_dependency <- function() {
     '  .maidr-page svg {',
     '    max-width: 100%; max-height: calc(100vh - 32px);',
     '    width: auto; height: auto;',
-    # IMPORTANT: do NOT set `overflow: visible` here. gridSVG export of
-    # quantmod::chartSeries emits volume <rect> elements with negative-y
+    # IMPORTANT: do NOT set `overflow: visible` here. gridSVG's export of
+    # quantmod::chartSeries emitted volume <rect> elements with negative-y
     # coordinates (e.g. y="-43.3", height up to ~165) that depend on the
     # SVG root's default `overflow: hidden` to clip the un-rendered
     # portion. `overflow: visible` un-clips those rectangles and causes
@@ -820,33 +1726,67 @@ display_html_file <- function(file) {
 #' @param svg_content Character vector of SVG content with maidr-data attribute
 #' @param use_cdn Logical. If `TRUE`, use CDN. If `FALSE`, use bundled files.
 #'   If `NULL` (default), auto-detect based on internet availability.
+#' @param page_fallback Logical. When the CDN is used, fall back to the copy of
+#'   the bundle the embedding page carries if the CDN load fails. Set by the
+#'   knitr paths, which add that copy to the document with
+#'   [maidr_page_bundle_dependency()], and by [maidr_widget()], which declares
+#'   the same dependency on the widget.
 #' @return Character string of complete HTML document
 #' @keywords internal
-create_standalone_html <- function(svg_content, use_cdn = NULL) {
+create_standalone_html <- function(svg_content, use_cdn = NULL, page_fallback = FALSE) {
+  # Spliced in as raw markup, and the document this builds is now same-origin
+  # with the page: `create_maidr_iframe()` carries it in `srcdoc`, so script
+  # reaching the frame reaches the host too, where the `data:` URL that
+  # preceded it was walled off by its opaque origin. Nothing is escaped here
+  # and nothing should need to be --- the labels arrive already escaped by the
+  # XML serialisation that produced the SVG --- but that is now an invariant
+  # with the page behind it, not just the frame.
   svg_html <- paste(svg_content, collapse = "\n")
 
-  # Auto-detect if not specified
+  # Auto-detect with a time-boxed cached probe. CDN (the latest published
+  # maidr.js, see `maidr_cdn_url()`) keeps documents small: inlining the
+  # multi-megabyte bundle into every iframe balloons multi-plot RMarkdown
+  # documents by tens of megabytes. The cache avoids the previous per-plot
+  # has_internet() probe, which could block for seconds per plot on offline
+  # machines, while its TTL keeps a stale answer from outliving the
+  # connectivity it described.
   if (is.null(use_cdn)) {
-    use_cdn <- curl::has_internet()
+    use_cdn <- maidr_internet_available()
   }
 
+  # Where maidr.js should import the DotPad SDK from, when the session says.
+  # It reads the globals as it loads, so they go in the head, ahead of the
+  # bundle in either branch; "" when nothing is configured.
+  dotpad_tag <- maidr_dotpad_config_script()
+
+  # Where maidr.js should fetch a language other than English from. The
+  # inlined bundle below has no URL to look beside, so it is told; a CDN copy
+  # has its packs beside it and is told nothing unless the session says.
+  locale_tag <- maidr_locale_config_script(maidr_locale_base_url(use_cdn))
+
   if (use_cdn) {
-    # CDN links - smaller HTML, relies on internet at view time
-    css_tag <- sprintf(
-      '<link rel="stylesheet" href="%s/maidr.css">',
-      maidr_cdn_url()
-    )
-    js_tag <- sprintf(
-      '<script src="%s/maidr.js"></script>',
-      maidr_cdn_url()
-    )
+    # CDN links - smaller HTML, relies on internet at view time. No
+    # stylesheet: maidr.js styles its interface at runtime and fetches
+    # maidr-math.css (KaTeX) from the directory this script tag names,
+    # so a <link> would be a request that changes nothing. No `integrity`
+    # attribute either: the version is the latest published one, whose
+    # hash cannot be known here (see `maidr_cdn_url()`). An unset `use_cdn`
+    # on an offline machine never gets here: the probe above sends it to
+    # the inlined bundle below, and no version lookup is made.
+    css_tag <- ""
+    cdn_js_url <- paste0(maidr_cdn_url(), "/maidr.js")
+    js_tag <- if (page_fallback) {
+      maidr_cdn_loader_script(cdn_js_url)
+    } else {
+      sprintf('<script src="%s"></script>', cdn_js_url)
+    }
   } else {
-    # Inline local content - works offline, larger HTML
-    assets <- maidr_local_assets()
-    css_content <- paste(readLines(assets$css, warn = FALSE), collapse = "\n")
-    js_content <- paste(readLines(assets$js, warn = FALSE), collapse = "\n")
-    css_tag <- sprintf("<style>\n%s\n</style>", css_content)
-    js_tag <- sprintf("<script>\n%s\n</script>", js_content)
+    # Inline local content - works offline, larger HTML. The script is
+    # inline here, so it has no URL to resolve KaTeX against and the
+    # stylesheet is inlined alongside it.
+    assets <- maidr_inline_asset_tags()
+    css_tag <- assets$css_tag
+    js_tag <- assets$js_tag
   }
 
   # Create a complete standalone HTML document
@@ -858,6 +1798,8 @@ create_standalone_html <- function(svg_content, use_cdn = NULL) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MAIDR Plot</title>
+  %s
+  %s
   %s
   <style>
     html, body {
@@ -958,55 +1900,287 @@ create_standalone_html <- function(svg_content, use_cdn = NULL) {
     })();
   </script>
 </body>
-</html>', css_tag, svg_html, js_tag)
+</html>', dotpad_tag, locale_tag, css_tag, svg_html, js_tag)
 
   html
 }
 
+#' Escape a document so it can travel in an HTML attribute
+#'
+#' The result is pure ASCII: quotes, angle brackets and ampersands become
+#' entities, and every character outside ASCII becomes a numeric character
+#' reference (`&#xD55C;`). The browser decodes those while it parses the
+#' attribute, so the frame's document holds the original characters, and
+#' nothing between here and the page has a byte left to garble.
+#'
+#' That last part is the point. The escaped document goes on through knitr's
+#' output, an htmlwidget's JSON and pandoc, and under a C locale -- a
+#' container, a CI runner, plenty of servers -- more than one of those treats
+#' an unmarked string as native-encoded and rewrites each non-ASCII byte as
+#' the text `<e2>`, `<80>`, `<a6>`. Leaving the bytes unmarked, which is what
+#' this did before, kept them intact only as far as this function: the ellipsis
+#' in the inlined maidr.js arrived in the page as `<e2><80><a6>`, the script
+#' no longer parsed, and a chart rendered offline was a plain picture. ASCII
+#' has no encoding to get wrong.
+#'
+#' Byte-wise, and deliberately not [htmltools::htmlEscape()], which works in
+#' characters and so garbles the same way under a C locale. `useBytes = TRUE`
+#' keeps the substitutions off the encoding: every byte they replace is ASCII
+#' and every byte of a multi-byte UTF-8 sequence is not, so none can land
+#' inside one. Ampersands go first, or the ones the later replacements
+#' introduce would be escaped a second time; the character references come
+#' last for the same reason.
+#'
+#' A string marked latin1 is converted to UTF-8 first; an unmarked one is
+#' taken to be UTF-8, which is what the SVG serialisation and the bundle
+#' produce, because `enc2utf8()` on it would assume the native encoding and
+#' garble it under a C locale. Unmarked bytes that are not valid UTF-8 are
+#' left as they are, since there is no telling what they spell.
+#'
+#' Quotes and angle brackets are enough for a double-quoted attribute: an
+#' apostrophe cannot end one, and a newline inside one is legal and preserved,
+#' so both are left alone.
+#'
+#' @param html Character string holding a complete HTML document
+#' @return The same document, escaped for use as an attribute value
+#' @keywords internal
+escape_for_attribute <- function(html) {
+  escaped <- if (Encoding(html) %in% c("latin1", "UTF-8")) enc2utf8(html) else html
+  escaped <- gsub("&", "&amp;", escaped, fixed = TRUE, useBytes = TRUE)
+  escaped <- gsub("<", "&lt;", escaped, fixed = TRUE, useBytes = TRUE)
+  escaped <- gsub(">", "&gt;", escaped, fixed = TRUE, useBytes = TRUE)
+  escaped <- gsub('"', "&quot;", escaped, fixed = TRUE, useBytes = TRUE)
+  escaped <- non_ascii_to_references(escaped)
+  Encoding(escaped) <- "unknown"
+  escaped
+}
+
+#' Replace every non-ASCII character with a numeric character reference
+#'
+#' Found and replaced as bytes. The same work done in characters, with a
+#' UTF-8 `perl` regex, takes seconds on a document carrying the 1.8 MB
+#' bundle, where this takes milliseconds: in bytes, a run of non-ASCII is a
+#' run of bytes from 0x80 up, and nothing has to count characters to find it.
+#'
+#' @param x A single string whose bytes are UTF-8, marked or not
+#' @return `x` in ASCII, or unchanged when it is already ASCII or its bytes
+#'   are not valid UTF-8
+#' @keywords internal
+non_ascii_to_references <- function(x) {
+  Encoding(x) <- "bytes"
+  runs <- gregexpr("[\\x80-\\xff]+", x, perl = TRUE, useBytes = TRUE)
+  if (runs[[1]][1] == -1L || !validUTF8(x)) {
+    return(x)
+  }
+
+  regmatches(x, runs) <- list(vapply(
+    regmatches(x, runs)[[1]],
+    function(run) {
+      Encoding(run) <- "UTF-8"
+      paste0(sprintf("&#x%X;", utf8ToInt(run)), collapse = "")
+    },
+    character(1),
+    USE.NAMES = FALSE
+  ))
+  x
+}
+
 #' Create iframe HTML tag for isolated MAIDR plot
 #'
-#' Creates an iframe element with base64-encoded src containing the complete MAIDR plot.
-#' Uses data URI with base64 encoding to avoid quote escaping issues with JSON.
-#' This isolates each plot in its own document/JavaScript context.
+#' Creates an iframe element whose `srcdoc` carries the complete MAIDR plot.
+#' This isolates each plot in its own document/JavaScript context while leaving
+#' it same-origin with the page, which is what Web Bluetooth and Web Serial ---
+#' and so the tactile display --- require.
 #'
 #' @param svg_content Character vector of SVG content with maidr-data attribute
-#' @param width Width of the iframe (default: "100\%")
+#' @param width Width of the iframe (default: "100%")
 #' @param height Height of the iframe (default: "450px")
 #' @param plot_id Unique identifier for the plot
 #' @param use_cdn Logical. If `TRUE`, use CDN. If `FALSE`, use bundled files.
 #'   If `NULL` (default), auto-detect based on internet availability.
+#' @param page_fallback Logical. Passed to [create_standalone_html()].
 #' @return Character string of iframe HTML
 #' @keywords internal
-create_maidr_iframe <- function(svg_content, width = "100%", height = "450px", plot_id = NULL, use_cdn = NULL) {
+create_maidr_iframe <- function(svg_content, width = "100%", height = "450px",
+                                plot_id = NULL, use_cdn = NULL,
+                                page_fallback = FALSE) {
   if (is.null(plot_id)) {
     plot_id <- generate_unique_id()
   }
 
-  standalone_html <- create_standalone_html(svg_content, use_cdn = use_cdn)
+  standalone_html <- create_standalone_html(
+    svg_content,
+    use_cdn = use_cdn,
+    page_fallback = page_fallback
+  )
 
-  # Use base64 encoding to avoid quote escaping issues with JSON in maidr-data
-  html_base64 <- base64enc::base64encode(charToRaw(standalone_html))
-  data_uri <- paste0("data:text/html;base64,", html_base64)
+  # `srcdoc`, not a `data:` URL, and the difference is the tactile display.
+  # A `data:` document has an opaque origin, and Web Bluetooth and Web Serial
+  # are unavailable to one whatever the `allow` attribute says: measured in
+  # Chromium, a `data:` frame carrying `allow="serial"` reports the feature
+  # allowed by Permissions Policy and still has no `navigator.serial` on it, so
+  # a Dot Pad could not be connected from an R chart at all. A `srcdoc`
+  # document inherits this page's origin and has both.
+  #
+  # `allow` covers the case inheritance does not: a chart inside a frame that
+  # is itself cross-origin, which is what an RMarkdown document embedded in
+  # another site is. This delegates a capability rather than creating one --- a
+  # frame cannot receive a feature the embedding page lacks, and the browser
+  # still asks the reader to pick the device.
+  #
+  # Same-origin cuts both ways and it is worth saying so: script inside the
+  # frame can now reach this document, where a `data:` frame could not. What
+  # goes in is the plot this R session drew, so the trust boundary is the one
+  # that was already there --- but a label carrying markup now reaches further
+  # than it did, and `create_standalone_html` is where that has to keep being
+  # handled.
+  #
+  # Escaped as an attribute rather than base64-encoded, and escaped byte-wise:
+  # see `escape_for_attribute`, which exists because the obvious call garbles
+  # every non-ASCII label on a system whose locale is not UTF-8.
+  srcdoc <- escape_for_attribute(standalone_html)
 
   iframe_html <- sprintf(
-    '<iframe id="maidr-iframe-%s" src="%s" style="width: %s; height: %s; border: none; display: block; margin: 0 auto; outline: none;" role="img" tabindex="0"></iframe>',
+    '<iframe id="maidr-iframe-%s" srcdoc="%s" allow="bluetooth; serial" style="width: %s; height: %s; border: none; display: block; margin: 0 auto; outline: none;" role="img" tabindex="0"></iframe>',
     plot_id,
-    data_uri,
+    srcdoc,
     width,
     height
   )
 
-  iframe_html
+  # The embedded document reports its content height, and asks for focus back
+  # when the reader shift-tabs off the chart, via postMessage; attach the
+  # parent-side listener so both work outside the htmlwidgets binding (e.g.
+  # iframes emitted directly into RMarkdown).
+  paste0(iframe_html, maidr_iframe_host_script())
+}
+
+#' Parent-side listener for the messages a MAIDR iframe posts
+#'
+#' Handles two messages, both keyed to the frame that sent them by matching
+#' `contentWindow` against the message's source:
+#'
+#' * `maidr-iframe-height` resizes the frame to its content.
+#' * `maidr:frame-focus-escape` moves focus out of the frame and into this
+#'   document, when the reader shift-tabs off the chart and the browser has
+#'   nowhere in this page to send them. Keyboard events do not cross a frame
+#'   boundary, so while the reader is inside the chart the page around it hears
+#'   nothing; if Shift+Tab then leaves the document altogether for the
+#'   browser's own UI, the page cannot be driven from the keyboard at all. On a
+#'   reveal.js slide that is exactly what happens --- the deck renders no
+#'   controls of its own, so a chart is the first thing on the page --- and no
+#'   key reaches the deck. The frame asks for the handoff rather than
+#'   performing it, which keeps working whether or not it can reach this
+#'   document: it could not when the chart was embedded through a `data:` URL,
+#'   and a message costs nothing now that `srcdoc` means it could.
+#'
+#' Focus goes to the tab stop before the frame where this page has a reachable
+#' one, which is what the browser would have done. Where it has none, focus
+#' lands on the element holding the frame --- a reveal.js slide is a
+#' `<section>`, so on a slide deck that is the slide itself.
+#'
+#' Reachability is checked rather than assumed: reveal.js leaves the slides on
+#' either side of the current one rendered, so a chart on the previous slide is
+#' a tab stop in document order even though it is marked hidden.
+#'
+#' So is the handoff itself. Asking an element to take focus is not the same as
+#' it taking focus --- `focus()` on an element with no rendered box is a silent
+#' no-op, and Shiny wraps every output in a `display: contents` div --- so the
+#' outcome is read back and the ancestors are walked until one actually holds
+#' it. An element is asked as it stands before being given `tabindex="-1"`, so
+#' a tab stop this page already owns is never taken out of the tab order, and a
+#' `tabindex` added to one that still refuses is removed again.
+#'
+#' Registered at most once per document (guarded by a window flag), no
+#' matter how many iframes embed it.
+#'
+#' @return Character string with a script tag
+#' @keywords internal
+maidr_iframe_host_script <- function() {
+  # `inst/htmlwidgets/maidr.js` carries its own copy of both listeners, because
+  # the widget binding sets the iframe HTML through `innerHTML` and a script
+  # element assigned that way never runs. Change one and change the other:
+  # nothing checks that the two agree.
+  paste0(
+    "<script>(function() {",
+    "if (window.__maidrIframeHost) return;",
+    "window.__maidrIframeHost = true;",
+    "var FRAMES = \"iframe[id^='maidr-iframe-'], iframe[id^='maidr-fallback-']\";",
+    "var TABBABLE = \"a[href], area[href], button:not([disabled]), \" +",
+    "\"input:not([disabled]), select:not([disabled]), textarea:not([disabled]), \" +",
+    "\"iframe, audio[controls], video[controls], \" +",
+    "'[contenteditable]:not([contenteditable=\\\"false\\\"]), ' +",
+    "'[tabindex]:not([tabindex^=\\\"-\\\"])';",
+    "var CONTAINER = 'section, article, [role=\\\"region\\\"]';",
+    "function frameOf(source) {",
+    "var frames = document.querySelectorAll(FRAMES);",
+    "for (var i = 0; i < frames.length; i++) {",
+    "if (frames[i].contentWindow === source) return frames[i];",
+    "}",
+    "return null;",
+    "}",
+    "function reachable(el) {",
+    "if (el.closest('[hidden], [aria-hidden=\\\"true\\\"], [inert]')) return false;",
+    "var s = window.getComputedStyle(el);",
+    "return s.display !== \"none\" && s.visibility !== \"hidden\";",
+    "}",
+    # Asking an element to take focus is not enough. `focus()` on an element
+    # with no rendered box -- a `display: contents` wrapper, which is what
+    # Shiny puts around every output -- is a silent no-op, so the outcome has
+    # to be read back. A tabindex this added is removed again when the element
+    # refuses, rather than leaving it claiming it can hold focus.
+    "function takeFocus(el) {",
+    # As it stands first. A tab stop this page already owns is focusable as it
+    # is, and giving it `tabindex="-1"` would take it out of the tab order.
+    "el.focus();",
+    "if (document.activeElement === el) return true;",
+    "if (el.hasAttribute(\"tabindex\")) return false;",
+    "el.setAttribute(\"tabindex\", \"-1\");",
+    "el.focus();",
+    "if (document.activeElement === el) return true;",
+    "el.removeAttribute(\"tabindex\");",
+    "return false;",
+    "}",
+    "function stopBefore(frame) {",
+    "var stops = document.querySelectorAll(TABBABLE);",
+    "var found = null;",
+    "for (var i = 0; i < stops.length; i++) {",
+    "if (stops[i] === frame) break;",
+    "if (reachable(stops[i])) found = stops[i];",
+    "}",
+    "return found;",
+    "}",
+    "window.addEventListener(\"message\", function(e) {",
+    "if (!e.data) return;",
+    "var frame = frameOf(e.source);",
+    "if (!frame) return;",
+    "if (e.data.type === \"maidr-iframe-height\") {",
+    # Anything on the page can post a message, so a height is only used once
+    # it is one. The widget binding has always checked this; the two agree now.
+    "if (typeof e.data.height !== \"number\" || e.data.height < 50) return;",
+    "frame.style.height = e.data.height + \"px\";",
+    "} else if (e.data.type === \"maidr:frame-focus-escape\") {",
+    "var target = stopBefore(frame);",
+    "if (target && takeFocus(target)) return;",
+    "var section = frame.closest(CONTAINER);",
+    "if (section && takeFocus(section)) return;",
+    "for (var el = frame.parentElement; el; el = el.parentElement) {",
+    "if (el !== section && takeFocus(el)) return;",
+    "}",
+    "}",
+    "});",
+    "})();</script>"
+  )
 }
 
 #' Create iframe HTML tag for fallback static image
 #'
-#' Creates an iframe element with base64-encoded src containing a static image.
+#' Creates an iframe element whose `srcdoc` carries a static image.
 #' Used when plots contain unsupported layers and fall back to PNG rendering.
 #' Unlike create_maidr_iframe, this does not include MAIDR.js dependencies.
 #'
 #' @param html_content Character string of HTML content (with img tag)
-#' @param width Width of the iframe (default: "100\%")
+#' @param width Width of the iframe (default: "100%")
 #' @param height Height of the iframe (default: "450px")
 #' @param plot_id Unique identifier for the plot
 #' @return Character string of iframe HTML
@@ -1051,14 +2225,15 @@ create_fallback_iframe <- function(html_content, width = "100%", height = "450px
     html_content
   )
 
-  # Use base64 encoding for the iframe src
-  html_base64 <- base64enc::base64encode(charToRaw(standalone_html))
-  data_uri <- paste0("data:text/html;base64,", html_base64)
+  # `srcdoc` for the same reason as the interactive frame, and for consistency:
+  # this one carries a static image and asks for no device, but keeping the two
+  # frames the same shape means one embedding to reason about rather than two.
+  srcdoc <- escape_for_attribute(standalone_html)
 
   iframe_html <- sprintf(
-    '<iframe id="maidr-fallback-%s" src="%s" style="width: %s; height: %s; border: none; display: block; margin: 0 auto;" role="img" tabindex="0"></iframe>',
+    '<iframe id="maidr-fallback-%s" srcdoc="%s" style="width: %s; height: %s; border: none; display: block; margin: 0 auto;" role="img" tabindex="0"></iframe>',
     plot_id,
-    data_uri,
+    srcdoc,
     width,
     height
   )

@@ -75,6 +75,7 @@ test_that("Ggplot2ProcessorFactory get_supported_types returns expected types", 
   testthat::expect_true("bar" %in% types)
   testthat::expect_true("point" %in% types)
   testthat::expect_true("line" %in% types)
+  testthat::expect_true("step" %in% types)
   testthat::expect_true("hist" %in% types)
   testthat::expect_true("box" %in% types)
   testthat::expect_true("heat" %in% types)
@@ -136,6 +137,29 @@ test_that("Ggplot2ProcessorFactory creates line processor", {
 
   testthat::expect_s3_class(processor, "Ggplot2LineLayerProcessor")
   testthat::expect_s3_class(processor, "LayerProcessor")
+})
+
+test_that("Ggplot2ProcessorFactory creates step processor", {
+  factory <- maidr:::Ggplot2ProcessorFactory$new()
+  layer_info <- list(index = 1)
+
+  processor <- factory$create_processor("step", layer_info)
+
+  testthat::expect_s3_class(processor, "Ggplot2StepLayerProcessor")
+  # Inherits the line processor's extraction and selector generation.
+  testthat::expect_s3_class(processor, "Ggplot2LineLayerProcessor")
+  testthat::expect_s3_class(processor, "LayerProcessor")
+})
+
+test_that("Ggplot2ProcessorFactory line and step processors are distinct classes", {
+  factory <- maidr:::Ggplot2ProcessorFactory$new()
+  layer_info <- list(index = 1)
+
+  line_processor <- factory$create_processor("line", layer_info)
+  step_processor <- factory$create_processor("step", layer_info)
+
+  testthat::expect_equal(class(line_processor)[1], "Ggplot2LineLayerProcessor")
+  testthat::expect_equal(class(step_processor)[1], "Ggplot2StepLayerProcessor")
 })
 
 test_that("Ggplot2ProcessorFactory creates histogram processor", {
@@ -227,13 +251,42 @@ test_that("Ggplot2ProcessorFactory is_processor_available returns logical", {
   testthat::expect_false(factory$is_processor_available("FakeProcessor"))
 })
 
-test_that("Ggplot2ProcessorFactory get_available_processors returns character vector", {
+test_that("Ggplot2ProcessorFactory available processors are the ones it ships", {
+  # It named none of them. `is_processor_available()` asked
+  # `exists(name, mode = "function")`, and a processor is an R6 *generator*
+  # rather than a function, so the predicate rejected every entry and the
+  # registry came back empty for every processor the package ships (#200).
+  #
+  # The old assertion here was that the result is a character vector, which
+  # `character(0)` satisfies -- and its own comment said so, in the words
+  # "may be empty if exists() doesn't find R6 classes". That is the defect,
+  # written down as though it were a tolerance.
   factory <- maidr:::Ggplot2ProcessorFactory$new()
 
   processors <- factory$get_available_processors()
 
-  # Should return character vector (may be empty if exists() doesn't find R6 classes)
   testthat::expect_type(processors, "character")
+  testthat::expect_gt(length(processors), 0)
+  testthat::expect_true("Ggplot2BarLayerProcessor" %in% processors)
+})
+
+test_that("Ggplot2ProcessorFactory available processors cannot drift from its dispatch", {
+  # The list used to be written out by hand beside a `switch` that never
+  # consulted it, so it drifted: by the time #200 was filed it was missing
+  # four of the twenty ggplot2 processors and one of the fourteen base R
+  # ones, and nothing could tell. It is now read off `create_processor()`,
+  # and this asserts that the two are the same set rather than that someone
+  # remembered to update a second copy.
+  factory <- maidr:::Ggplot2ProcessorFactory$new()
+  dispatched <- maidr:::dispatched_processor_classes(
+    maidr:::Ggplot2ProcessorFactory, "Ggplot2"
+  )
+
+  testthat::expect_gt(length(dispatched), 0)
+  testthat::expect_setequal(factory$get_available_processors(), dispatched)
+  testthat::expect_true(all(vapply(
+    dispatched, maidr:::processor_class_exists, logical(1)
+  )))
 })
 
 test_that("Ggplot2ProcessorFactory try_create_processor handles valid types", {
@@ -289,10 +342,19 @@ test_that("BaseRProcessorFactory get_supported_types returns expected types", {
   testthat::expect_true("box" %in% types)
   testthat::expect_true("heat" %in% types)
   testthat::expect_true("smooth" %in% types)
+  testthat::expect_true("step" %in% types)
   testthat::expect_true("dodged_bar" %in% types)
   testthat::expect_true("stacked_bar" %in% types)
-  testthat::expect_true("contour" %in% types)
   testthat::expect_true("unknown" %in% types)
+
+  # Claimed again since `BaseRContourLayerProcessor` exists to dispatch it
+  # (#218). It was off this list for a while, and the reason still governs:
+  # a type listed here that `create_processor()` cannot dispatch is worse
+  # than one that is not claimed at all -- the layer came out typed
+  # "unknown", past the fallback check that looks for exactly that on
+  # `layer$type`, and into a payload the core's trace factory throws on
+  # (#214). So the list and the dispatch move together.
+  testthat::expect_true("contour" %in% types)
 })
 
 test_that("BaseRProcessorFactory supports_plot_type works correctly", {
@@ -301,8 +363,10 @@ test_that("BaseRProcessorFactory supports_plot_type works correctly", {
   testthat::expect_true(factory$supports_plot_type("bar"))
   testthat::expect_true(factory$supports_plot_type("point"))
   testthat::expect_true(factory$supports_plot_type("line"))
-  testthat::expect_true(factory$supports_plot_type("contour"))
   testthat::expect_true(factory$supports_plot_type("unknown"))
+  # See above: base R reads a contour now (#218), and the claim is only safe
+  # because the dispatch backs it (#214).
+  testthat::expect_true(factory$supports_plot_type("contour"))
   testthat::expect_false(factory$supports_plot_type("unsupported_type"))
 })
 
@@ -347,6 +411,29 @@ test_that("BaseRProcessorFactory creates line processor", {
 
   testthat::expect_s3_class(processor, "BaseRLineLayerProcessor")
   testthat::expect_s3_class(processor, "LayerProcessor")
+})
+
+test_that("BaseRProcessorFactory creates step processor", {
+  factory <- maidr:::BaseRProcessorFactory$new()
+  layer_info <- list(index = 1)
+
+  processor <- factory$create_processor("step", layer_info)
+
+  testthat::expect_s3_class(processor, "BaseRStepLayerProcessor")
+  # Inherits the line processor's extraction and selector generation.
+  testthat::expect_s3_class(processor, "BaseRLineLayerProcessor")
+  testthat::expect_s3_class(processor, "LayerProcessor")
+})
+
+test_that("BaseRProcessorFactory line and step processors are distinct classes", {
+  factory <- maidr:::BaseRProcessorFactory$new()
+  layer_info <- list(index = 1)
+
+  line_processor <- factory$create_processor("line", layer_info)
+  step_processor <- factory$create_processor("step", layer_info)
+
+  testthat::expect_equal(class(line_processor)[1], "BaseRLineLayerProcessor")
+  testthat::expect_equal(class(step_processor)[1], "BaseRStepLayerProcessor")
 })
 
 test_that("BaseRProcessorFactory creates histogram processor", {
@@ -409,13 +496,17 @@ test_that("BaseRProcessorFactory creates stacked_bar processor", {
   testthat::expect_s3_class(processor, "LayerProcessor")
 })
 
-test_that("BaseRProcessorFactory creates unknown processor for contour", {
+test_that("BaseRProcessorFactory creates a contour processor for contour", {
   factory <- maidr:::BaseRProcessorFactory$new()
   layer_info <- list(index = 1)
 
   processor <- factory$create_processor("contour", layer_info)
 
-  testthat::expect_s3_class(processor, "BaseRUnknownLayerProcessor")
+  # Was the generic processor until #218 gave base R a contour reading. The
+  # assertion is kept rather than deleted because it is the half of #214 that
+  # still matters: whatever this returns has to be something that can produce
+  # the type `base_r_adapter` maps the call to.
+  testthat::expect_s3_class(processor, "BaseRContourLayerProcessor")
   testthat::expect_s3_class(processor, "LayerProcessor")
 })
 
@@ -448,13 +539,42 @@ test_that("BaseRProcessorFactory is_processor_available returns logical", {
   testthat::expect_false(factory$is_processor_available("FakeProcessor"))
 })
 
-test_that("BaseRProcessorFactory get_available_processors returns character vector", {
+test_that("BaseRProcessorFactory available processors are the ones it ships", {
+  # It named none of them. `is_processor_available()` asked
+  # `exists(name, mode = "function")`, and a processor is an R6 *generator*
+  # rather than a function, so the predicate rejected every entry and the
+  # registry came back empty for every processor the package ships (#200).
+  #
+  # The old assertion here was that the result is a character vector, which
+  # `character(0)` satisfies -- and its own comment said so, in the words
+  # "may be empty if exists() doesn't find R6 classes". That is the defect,
+  # written down as though it were a tolerance.
   factory <- maidr:::BaseRProcessorFactory$new()
 
   processors <- factory$get_available_processors()
 
-  # Should return character vector (may be empty if exists() doesn't find R6 classes)
   testthat::expect_type(processors, "character")
+  testthat::expect_gt(length(processors), 0)
+  testthat::expect_true("BaseRBarplotLayerProcessor" %in% processors)
+})
+
+test_that("BaseRProcessorFactory available processors cannot drift from its dispatch", {
+  # The list used to be written out by hand beside a `switch` that never
+  # consulted it, so it drifted: by the time #200 was filed it was missing
+  # four of the twenty ggplot2 processors and one of the fourteen base R
+  # ones, and nothing could tell. It is now read off `create_processor()`,
+  # and this asserts that the two are the same set rather than that someone
+  # remembered to update a second copy.
+  factory <- maidr:::BaseRProcessorFactory$new()
+  dispatched <- maidr:::dispatched_processor_classes(
+    maidr:::BaseRProcessorFactory, "BaseR"
+  )
+
+  testthat::expect_gt(length(dispatched), 0)
+  testthat::expect_setequal(factory$get_available_processors(), dispatched)
+  testthat::expect_true(all(vapply(
+    dispatched, maidr:::processor_class_exists, logical(1)
+  )))
 })
 
 test_that("BaseRProcessorFactory try_create_processor handles valid types", {

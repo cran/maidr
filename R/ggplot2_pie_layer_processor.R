@@ -1,0 +1,574 @@
+#' Pie Layer Processor
+#'
+#' Processes the ggplot2 idiom for a pie chart: a \code{geom_col()} /
+#' \code{geom_bar()} layer drawn in polar coordinates with theta mapped to y,
+#' so the stack's segments become wedges. The payload is 1-D and flat -- one
+#' point per wedge, \code{x} the slice label and \code{y} its magnitude. The
+#' percentage MAIDR announces is derived from those values by the frontend, so
+#' this layer deliberately does not emit one.
+#'
+#' Multi-ring "bullseye" polar bars are out of scope. \code{geom_col()} with a
+#' non-constant x under \code{coord_polar("y")} draws one concentric ring per
+#' x category, and a flat list of wedges cannot carry that second dimension --
+#' wedges from different rings would collapse onto the same label. Those
+#' layers never reach this processor: \code{Ggplot2Adapter$is_pie_coord()}
+#' declines them, and they stay bar / stacked / dodged as before.
+#'
+#' @keywords internal
+Ggplot2PieLayerProcessor <- R6::R6Class(
+  "Ggplot2PieLayerProcessor",
+  inherit = LayerProcessor,
+  public = list(
+    #' @description Process the pie layer
+    #' @param plot The ggplot2 object
+    #' @param layout Layout information
+    #' @param built Built plot data (optional)
+    #' @param gt Gtable object (optional)
+    #' @param grob_id Grob ID for faceted plots (optional)
+    #' @param panel_id Panel ID for faceted plots (optional)
+    #' @param panel_ctx Panel context for panel-scoped selectors (optional)
+    #' @return List with data, selectors, title, axes and type
+    process = function(plot,
+                       layout,
+                       built = NULL,
+                       gt = NULL,
+                       grob_id = NULL,
+                       panel_id = NULL,
+                       panel_ctx = NULL) {
+      if (is.null(built)) {
+        built <- ggplot2::ggplot_build(plot)
+      }
+
+      c(
+        list(
+          data = self$extract_data(plot, built, panel_id = panel_id),
+          selectors = self$generate_selectors(plot, gt, panel_ctx = panel_ctx),
+          title = if (!is.null(layout$title)) layout$title else "",
+          axes = self$extract_pie_axes(plot, layout, built, panel_id),
+          type = "pie"
+        ),
+        self$extract_dial(plot, built, panel_id)
+      )
+    },
+
+    #' @description Where the ring begins and which way the emitted wedges run
+    #'
+    #' The frontend walks a pie clockwise -- Right steps to the next slice the
+    #' way a clock hand goes, the audio pans each slice to where it sits and
+    #' `p` names its clock position -- all from where the layer says the first
+    #' slice begins, in degrees clockwise from 12 o'clock. The layer says two
+    #' things about the wedges it emits: where the ring begins and which way
+    #' round the dial the *emitted order* runs.
+    #'
+    #' Where the ring begins, and which way the coord runs round it, are read
+    #' off the coord by \code{pie_coord_ring()}: \code{coord_polar()} keeps a
+    #' \code{start} applied in its \code{direction}, \code{coord_radial()} an
+    #' \code{arc} already turned round by its \code{reverse}. Either maps the
+    #' whole theta scale onto the arc, so a full ring ends where it began and
+    #' the same edge serves whichever way the wedges are walked. A partial
+    #' \code{coord_radial()} arc, or its default theta expansion, draws less
+    #' than the full circle; the frontend's pie has no key for that, so the
+    #' ring's nominal edge is declared and the wedges are read as filling it.
+    #'
+    #' Which way the emitted order runs is NOT simply the coord's direction.
+    #' \code{position_stack()} stacks the first group on top by default, so
+    #' the built rows -- and the wedges, and the selectors index-aligned to
+    #' them -- run from the top of the stack down: the first emitted wedge is
+    #' the one that ENDS the ring, and the order goes back against the coord's
+    #' direction, and \code{position_stack(reverse = TRUE)} builds them the
+    #' other way up. So the direction is read off the built rows themselves:
+    #' emitted order running down the stack is the coord's direction
+    #' reversed, running up it is the coord's direction.
+    #'
+    #' Both keys are left out at the frontend's own defaults -- a clockwise
+    #' ring from the top -- which is also what every layer declared before
+    #' the keys existed.
+    #'
+    #' @param plot The ggplot2 object
+    #' @param built Built plot data
+    #' @param panel_id Optional facet panel to restrict extraction to
+    #' @return Named list holding `startAngle` and/or `direction`, possibly
+    #'   empty
+    extract_dial = function(plot, built, panel_id = NULL) {
+      ring <- pie_coord_ring(plot$coordinates)
+
+      built_data <- self$panel_built_data(built, panel_id)
+      down_the_stack <- FALSE
+      if (nrow(built_data) > 1L && !is.null(built_data$ymin)) {
+        ymin <- built_data$ymin
+        first <- ymin[[1L]]
+        last <- ymin[[nrow(built_data)]]
+        down_the_stack <- is.finite(first) && is.finite(last) && first > last
+      }
+      emitted_direction <- if (down_the_stack) -ring$direction else ring$direction
+
+      start_angle <- (ring$start * 180 / pi) %% 360
+      dial <- list()
+      if (start_angle != 0) {
+        dial$startAngle <- start_angle
+      }
+      if (emitted_direction < 0) {
+        dial$direction <- "counterclockwise"
+      }
+      dial
+    },
+
+    #' @description Extract one point per wedge
+    #'
+    #' The magnitude is the segment's own extent, not the stacked \code{y}:
+    #' \code{ymax - ymin} is what the wedge actually subtends, and it is the
+    #' one expression that works for both \code{geom_col()} (stat identity)
+    #' and \code{geom_bar()} (stat count).
+    #'
+    #' The extent is unsigned, though, and a negative datum is stacked
+    #' \emph{below} the baseline: ggplot2 builds \code{v = -40} as
+    #' \code{ymin = -40, ymax = 0}, so the extent is 40 and the sign is gone.
+    #' Reporting that would announce a slice the author entered as -40 as
+    #' \code{40}, and compute its share against a total that swallowed it --
+    #' confidently wrong, and indistinguishable from real data.
+    #'
+    #' So the sign is restored from which side of the baseline the segment
+    #' sits on. The renderer treats a negative slice as a gap, announcing it
+    #' as missing rather than letting it corrupt every other slice's
+    #' percentage; laundering it here would leave that defence nothing to
+    #' catch. Whether a producer should reject such a value outright is a
+    #' separate question -- see xability/maidr#771 -- but no answer to it is
+    #' served by destroying the sign first.
+    #'
+    #' @param plot The ggplot2 object
+    #' @param built Built plot data (optional)
+    #' @param panel_id Optional facet panel to restrict extraction to
+    #' @return List of \code{list(x, y)} points, one per wedge
+    extract_data = function(plot, built = NULL, panel_id = NULL) {
+      if (is.null(built)) {
+        built <- ggplot2::ggplot_build(plot)
+      }
+
+      built_data <- self$panel_built_data(built, panel_id)
+      if (nrow(built_data) == 0) {
+        return(list())
+      }
+
+      labels <- self$resolve_slice_labels(plot, built, built_data)
+      # A segment lying below the baseline came from a negative datum; one
+      # touching or above it did not. `ymax <= 0` is the test rather than
+      # `ymin < 0`, so a segment straddling zero -- which stacking does not
+      # produce, but a hand-built layer could -- is read as positive rather
+      # than having its sign guessed.
+      extents <- built_data$ymax - built_data$ymin
+      below <- !is.na(built_data$ymax) & built_data$ymax <= 0 &
+        !is.na(built_data$ymin) & built_data$ymin < 0
+      values <- ifelse(below, -extents, extents)
+
+      lapply(seq_len(nrow(built_data)), function(i) {
+        list(x = labels[[i]], y = values[[i]])
+      })
+    },
+
+    #' @description Rows of this layer's built data, optionally one panel's
+    #' @param built Built plot data
+    #' @param panel_id Optional facet panel to restrict the rows to
+    #' @return data.frame of built rows for this layer
+    panel_built_data = function(built, panel_id = NULL) {
+      built_data <- built$data[[self$get_layer_index()]]
+      if (!is.null(panel_id) && "PANEL" %in% names(built_data)) {
+        built_data <- built_data[built_data$PANEL == panel_id, , drop = FALSE]
+      }
+      built_data
+    },
+
+    #' @description Resolve the aesthetic whose categories name the wedges
+    #'
+    #' Fill is probed before x because the idiomatic pie maps x to the literal
+    #' \code{""} and carries the categories on fill. A layer whose built rows
+    #' do not each sit in their own group is not split by any aesthetic (every
+    #' row shares group -1 or 1), so no aesthetic names its wedges.
+    #'
+    #' @param plot The ggplot2 object
+    #' @param built_data This layer's built rows
+    #' @return list with \code{aes} (aesthetic name, or NULL) and
+    #'   \code{column} (the mapped column name)
+    resolve_slice_mapping = function(plot, built_data) {
+      group_ids <- built_data$group
+      if (is.null(group_ids) || anyDuplicated(group_ids) > 0) {
+        return(list(aes = NULL, column = "group"))
+      }
+
+      # One aesthetic per call: `resolve_series_group_mapping()` probes the
+      # LAYER's mapping for every aesthetic it is handed before it looks at
+      # the plot's, so passing fill and x together would let a layer-level x
+      # beat a plot-level fill. Fill has to be exhausted at both levels first
+      # -- a pie's x is the constant that collapses the ring, and naming the
+      # wedges after it leaves every one of them called the same thing.
+      fill <- resolve_series_group_mapping(
+        plot,
+        self$get_layer_index(),
+        aes_groups = list("fill")
+      )
+      if (!is.null(fill$aes)) {
+        return(fill)
+      }
+
+      resolve_series_group_mapping(
+        plot,
+        self$get_layer_index(),
+        aes_groups = list("x")
+      )
+    },
+
+    #' @description Name each wedge after the category it draws
+    #'
+    #' \code{ggplot_build()} has already replaced the grouping column with
+    #' integer group ids, assigned in the sorted order of that column's
+    #' values -- the same order the scale reports its labels in. Indexing the
+    #' labels BY the id, rather than by position among the ids present, is
+    #' what stops a facet panel that is missing a category from shifting every
+    #' remaining wedge's label by one. Wedges the scale cannot name fall back
+    #' to their position.
+    #'
+    #' @param plot The ggplot2 object
+    #' @param built Built plot data
+    #' @param built_data This layer's built rows
+    #' @return Character vector, one label per wedge
+    resolve_slice_labels = function(plot, built, built_data) {
+      labels <- as.character(seq_len(nrow(built_data)))
+
+      slice <- self$resolve_slice_mapping(plot, built_data)
+      if (is.null(slice$aes)) {
+        return(labels)
+      }
+
+      categories <- self$slice_categories(plot, built, slice)
+      if (is.null(categories)) {
+        return(labels)
+      }
+
+      ids <- suppressWarnings(as.integer(built_data$group))
+      hit <- !is.na(ids) & ids >= 1 & ids <= length(categories)
+      labels[hit] <- categories[ids[hit]]
+      labels
+    },
+
+    #' @description Categories of the aesthetic that splits the wedges
+    #'
+    #' The scale is asked first, because a mapping written as an expression --
+    #' \code{aes(fill = factor(cyl))} -- has no column to read. A discrete
+    #' POSITION scale keeps its labels in \code{panel_params} instead, and
+    #' \code{coord_polar()} publishes none of those under x, so the mapped
+    #' column is the fallback. Both list the categories in the same sorted
+    #' order the group ids were assigned in.
+    #'
+    #' @param plot The ggplot2 object
+    #' @param built Built plot data
+    #' @param slice Slice mapping from \code{resolve_slice_mapping()}
+    #' @return Character vector of categories, or NULL when neither source has any
+    slice_categories = function(plot, built, slice) {
+      labels <- self$scale_labels(built, slice$aes)
+      if (!is.null(labels)) {
+        return(labels)
+      }
+
+      original <- plot$data
+      if (is.data.frame(original) && slice$column %in% names(original)) {
+        return(as.character(sort(unique(original[[slice$column]]))))
+      }
+
+      NULL
+    },
+
+    #' @description Break labels of the scale backing an aesthetic
+    #' @param built Built plot data
+    #' @param aes_name Aesthetic whose scale to read
+    #' @return Character vector of labels, or NULL when the scale has none
+    scale_labels = function(built, aes_name) {
+      scales <- built$plot$scales$scales
+      if (is.null(scales)) {
+        return(NULL)
+      }
+
+      for (sc in scales) {
+        if (!(aes_name %in% sc$aesthetics) || !is.function(sc$get_labels)) {
+          next
+        }
+        labels <- tryCatch(as.character(sc$get_labels()), error = function(e) NULL)
+        if (length(labels) > 0) {
+          return(labels)
+        }
+      }
+
+      NULL
+    },
+
+    #' @description Build the canonical axes for a pie layer
+    #'
+    #' \code{x} names what the wedge labels mean and \code{y} what their
+    #' magnitudes measure. Since the labels come off the slice aesthetic, its
+    #' legend title is the x label -- resolved the same way the stacked bar
+    #' layer resolves its z label. The y label is taken from the layout, which
+    #' reads the BUILT plot's labels and so already carries a stat-derived
+    #' name such as "count".
+    #'
+    #' @param plot The ggplot2 object
+    #' @param layout Layout information
+    #' @param built Built plot data
+    #' @param panel_id Optional facet panel to restrict extraction to
+    #' @return Canonical axes list with x and y
+    extract_pie_axes = function(plot, layout, built, panel_id = NULL) {
+      fallback <- self$extract_layer_axes(plot, layout)
+
+      slice <- self$resolve_slice_mapping(plot, self$panel_built_data(built, panel_id))
+      x_label <- if (!is.null(slice$aes)) {
+        resolve_legend_label(
+          plot,
+          built = built,
+          aes_names = slice$aes,
+          layer_index = self$get_layer_index()
+        )
+      } else {
+        NULL
+      }
+      if (is.null(x_label)) {
+        x_label <- extract_axis_label(fallback$x, default = "")
+      }
+
+      build_axes(x = x_label, y = extract_axis_label(fallback$y, default = ""))
+    },
+
+    #' @description Generate the wedge selector for this layer
+    #'
+    #' In polar coordinates the whole layer is ONE \code{polygonGrob} named
+    #' \code{geom_rect.polygon.<N>} whose sub-polygons are grouped by
+    #' \code{id} -- not the \code{geom_rect.rect.<N>} a cartesian bar layer
+    #' draws. gridSVG exports it as \code{<g id="geom_rect.polygon.<N>.1">}
+    #' with one \code{<polygon>} child per wedge, emitted in built-row order,
+    #' so a single descendant selector resolves to the N elements in slice
+    #' order.
+    #'
+    #' @param plot The ggplot2 object
+    #' @param gt Gtable object (optional)
+    #' @param panel_ctx Panel context for panel-scoped selectors (optional)
+    #' @return List holding one selector, or an empty list
+    generate_selectors = function(plot, gt = NULL, panel_ctx = NULL) {
+      if (is.null(gt)) {
+        return(list())
+      }
+
+      panel <- find_gtable_panel_grob(gt, panel_ctx)
+      slot <- self$layer_slot_grob(panel)
+      polygon_grob <- if (!is.null(slot)) {
+        # The slot is this layer's, so whatever it holds is the answer --
+        # including "not a container", which means this layer drew no wedges.
+        # Falling through to the search here would hand a label layer the
+        # pie's wedges.
+        self$find_own_polygon_grob(slot)
+      } else {
+        self$sole_wedge_container(
+          if (is.null(panel) && "grobs" %in% names(gt)) gt$grobs else list(panel)
+        )
+      }
+      # No polygon grob means this layer drew no wedges here: an empty facet
+      # level, a zero-row layer, a coord that renders no polygons. The layer
+      # INDEX is not the grob id - every `geom_rect.polygon.N` id carries
+      # grid's session-wide grob counter - so a guessed name is right only by
+      # coincidence, and when it does land it lands on ANOTHER panel's
+      # wedges, which highlights the wrong marks while the payload still
+      # looks healthy. The caller can tell an empty selector list apart from
+      # a wrong one, a user cannot.
+      if (is.null(polygon_grob)) {
+        return(list())
+      }
+
+      svg_id <- paste0(polygon_grob, ".1")
+      escaped_svg_id <- gsub("\\.", "\\\\.", svg_id)
+
+      list(paste0("#", escaped_svg_id, " polygon"))
+    },
+
+    #' @description The grob slot belonging to *this* layer
+    #'
+    #' ggplot2 lays a panel out as the grill, a leading \code{zeroGrob},
+    #' \strong{one child per layer in layer order}, a trailing
+    #' \code{zeroGrob} and the axis tree. So the slot is the handle: layer
+    #' \emph{k} owns the \emph{k}th child after the leading blank, whether or
+    #' not it drew anything.
+    #'
+    #' It matters because a panel can hold more than one polar
+    #' \code{geom_rect} layer -- two \code{geom_col()}s under
+    #' \code{coord_polar()} is an ordinary way to draw a ring over a pie --
+    #' and a search that takes the first container hands every layer the first
+    #' layer's wedges. Those selectors resolve, and the payload looks healthy,
+    #' and the outline is on the wrong marks.
+    #'
+    #' \code{LayerProcessor$find_layer_grob_tree()} cannot be reused for this:
+    #' it matches on the geom's own class, and a \code{geom_col()} layer is
+    #' \code{GeomCol} while the grob it draws is named after
+    #' \code{geom_rect}. Counting containers instead of slots does not work
+    #' either -- a \code{geom_text()} label layer occupies a slot and draws no
+    #' container, so the counts stop lining up and both rings of an annotated
+    #' pie lose their selectors.
+    #'
+    #' @param panel The panel grob, or NULL
+    #' @return This layer's grob, or NULL when the slot cannot be established
+    layer_slot_grob = function(panel) {
+      find_layer_slot_grob(panel, self$get_layer_index())
+    },
+
+    #' @description The one wedge container in a tree, when there is exactly one
+    #'
+    #' The fallback for when the slot lookup cannot resolve -- a panel shape
+    #' with no leading blank, or a caller handing over a gtable rather than a
+    #' panel. Correct whenever the search finds a single container, which is
+    #' every chart that is only a pie; ambiguous otherwise, and ambiguous
+    #' means no selector for the reason \code{generate_selectors()} gives.
+    #'
+    #' @param roots Grobs to search
+    #' @return Grob name, or NULL
+    sole_wedge_container = function(roots) {
+      containers <- unlist(
+        lapply(roots, function(root) self$collect_polygon_grobs(root)),
+        use.names = FALSE
+      )
+      if (length(containers) == 1L) containers[[1]] else NULL
+    },
+
+    #' @description Every wedge container in a grob tree, in drawing order
+    #'
+    #' One entry per layer that drew wedges. A match is not descended into:
+    #' the container is the whole layer's wedges, and its children are the
+    #' individual ones.
+    #'
+    #' @param grob Grob to search
+    #' @return Character vector of grob names, possibly empty
+    collect_polygon_grobs = function(grob) {
+      if (is.null(grob)) {
+        return(character(0))
+      }
+
+      own <- self$find_own_polygon_grob(grob)
+      if (!is.null(own)) {
+        return(own)
+      }
+
+      found <- character(0)
+      if ("children" %in% names(grob)) {
+        for (child in grob$children) {
+          found <- c(found, self$collect_polygon_grobs(child))
+        }
+      }
+      found
+    },
+
+    #' @description Whether this grob is itself a wedge container
+    #'
+    #' ggplot2 does not draw a polar bar layer the same way across versions,
+    #' and the difference is not cosmetic. Verified against real
+    #' \code{gridSVG::grid.export()} output:
+    #'
+    #' \itemize{
+    #'   \item One \code{geom_rect.polygon.<N>} grob holding every wedge,
+    #'     grouped by id. This is what the lookup was written for.
+    #'   \item A \code{geom_rect.gTree.<N>} holding \strong{one
+    #'     \code{geom_polygon.polygon.<N>} grob per wedge}. On ggplot2 3.4.4
+    #'     this is what a pie draws, and nothing named
+    #'     \code{geom_rect.polygon} exists anywhere in the tree -- so the
+    #'     lookup found nothing, \code{generate_selectors()} returned an empty
+    #'     list, and \strong{a pie highlighted nothing at all} (#151).
+    #' }
+    #'
+    #' Either way the answer is a container whose \code{<polygon>} descendants
+    #' are the wedges in slice order, so the caller's descendant selector
+    #' resolves against both without knowing which it got.
+    #'
+    #' The polar grill draws a polygon of its own under
+    #' \code{coord_radial()}, named \code{GRID.polygon.<N>}; neither branch
+    #' carries a name that matches it. The gTree branch also requires a
+    #' polygon to be there: a \code{geom_rect} layer that drew none has
+    #' nothing to point at.
+    #'
+    #' @param grob Grob to test
+    #' @return Grob name, or NULL
+    find_own_polygon_grob = function(grob) {
+      if (is.null(grob) || is.null(grob$name)) {
+        return(NULL)
+      }
+      if (grepl("^geom_rect\\.polygon", grob$name)) {
+        return(grob$name)
+      }
+      if (grepl("^geom_rect\\.gTree", grob$name) && self$holds_polygon(grob)) {
+        return(grob$name)
+      }
+      NULL
+    },
+
+    #' @description Whether a grob tree draws at least one polygon.
+    #'
+    #' @param grob Grob to search
+    #' @return TRUE when the tree holds a polygon grob
+    holds_polygon = function(grob) {
+      if (identical(class(grob)[1], "polygon")) {
+        return(TRUE)
+      }
+
+      if ("children" %in% names(grob)) {
+        for (child in grob$children) {
+          if (self$holds_polygon(child)) {
+            return(TRUE)
+          }
+        }
+      }
+
+      FALSE
+    }
+  )
+)
+
+#' Where a Polar Coord's Ring Begins and Which Way It Runs
+#'
+#' In radians clockwise from 12 o'clock, and 1 for clockwise, -1 for
+#' anticlockwise.
+#'
+#' The two polar coords store the same two facts differently. `coord_polar()`
+#' keeps `start`, an offset applied in its `direction`, so its edge sits at
+#' `direction * start`. `coord_radial()` keeps `arc = c(start, end)`: on
+#' ggplot2 >= 4.0 a `reverse` of "theta" or "thetar" turns the arc round before
+#' it is stored, so the first element is the edge and no sign applies, while
+#' 3.5.x kept a numeric `direction` applied to the arc the way `coord_polar()`
+#' applies it to `start`. Measured on ggplot2 4.0.3: `coord_radial("y", start
+#' = pi / 2, reverse = "theta")` draws its ring anticlockwise from 3 o'clock.
+#' Anything unusable falls back to that coord's own default.
+#'
+#' @param coord A CoordPolar or CoordRadial ggproto object
+#' @return List with `start` (radians) and `direction` (1 or -1)
+#' @keywords internal
+#' @noRd
+pie_coord_ring <- function(coord) {
+  radial <- inherits(coord, "CoordRadial")
+  start <- pie_coord_number(if (radial) coord$arc[1L] else coord$start, 0)
+
+  reverse <- coord$reverse
+  if (radial && is.character(reverse)) {
+    direction <- if (any(reverse %in% c("theta", "thetar"))) -1 else 1
+    return(list(start = start, direction = direction))
+  }
+
+  direction <- sign(pie_coord_number(coord$direction, 1))
+  if (direction == 0) {
+    direction <- 1
+  }
+  list(start = direction * start, direction = direction)
+}
+
+#' One Finite Number Out of a Coord Field
+#'
+#' The default stands in when the field is anything else: absent, a vector,
+#' NA or infinite.
+#'
+#' @param value The field as stored
+#' @param default What to use instead
+#' @return A length-one finite numeric
+#' @keywords internal
+#' @noRd
+pie_coord_number <- function(value, default) {
+  usable <- is.numeric(value) && length(value) == 1L && is.finite(value)
+  if (usable) value else default
+}

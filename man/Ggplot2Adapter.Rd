@@ -10,187 +10,510 @@ An R6 class inheriting from SystemAdapter
 Adapter for the ggplot2 plotting system. This adapter wraps the existing
 ggplot2 functionality to work with the new extensible architecture.
 }
-\keyword{Check}
-\keyword{Initialize}
-\keyword{a}
-\keyword{adapter}
-\keyword{can}
-\keyword{ggplot2}
-\keyword{handle}
-\keyword{if}
 \keyword{internal}
-\keyword{object}
-\keyword{plot}
-\keyword{the}
-\keyword{this}
 \section{Super class}{
-\code{\link[maidr:SystemAdapter]{maidr::SystemAdapter}} -> \code{Ggplot2Adapter}
+\code{\link[maidr:SystemAdapter]{SystemAdapter}} -> \code{Ggplot2Adapter}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-Ggplot2Adapter-new}{\code{Ggplot2Adapter$new()}}
-\item \href{#method-Ggplot2Adapter-can_handle}{\code{Ggplot2Adapter$can_handle()}}
-\item \href{#method-Ggplot2Adapter-detect_layer_type}{\code{Ggplot2Adapter$detect_layer_type()}}
-\item \href{#method-Ggplot2Adapter-create_orchestrator}{\code{Ggplot2Adapter$create_orchestrator()}}
-\item \href{#method-Ggplot2Adapter-get_system_name}{\code{Ggplot2Adapter$get_system_name()}}
-\item \href{#method-Ggplot2Adapter-get_adapter}{\code{Ggplot2Adapter$get_adapter()}}
-\item \href{#method-Ggplot2Adapter-has_facets}{\code{Ggplot2Adapter$has_facets()}}
-\item \href{#method-Ggplot2Adapter-is_patchwork}{\code{Ggplot2Adapter$is_patchwork()}}
-\item \href{#method-Ggplot2Adapter-clone}{\code{Ggplot2Adapter$clone()}}
-}
+  \itemize{
+    \item \href{#method-Ggplot2Adapter-initialize}{\code{Ggplot2Adapter$new()}}
+    \item \href{#method-Ggplot2Adapter-can_handle}{\code{Ggplot2Adapter$can_handle()}}
+    \item \href{#method-Ggplot2Adapter-detect_layer_type}{\code{Ggplot2Adapter$detect_layer_type()}}
+    \item \href{#method-Ggplot2Adapter-is_pie_coord}{\code{Ggplot2Adapter$is_pie_coord()}}
+    \item \href{#method-Ggplot2Adapter-draws_single_ring}{\code{Ggplot2Adapter$draws_single_ring()}}
+    \item \href{#method-Ggplot2Adapter-find_layer_index}{\code{Ggplot2Adapter$find_layer_index()}}
+    \item \href{#method-Ggplot2Adapter-create_orchestrator}{\code{Ggplot2Adapter$create_orchestrator()}}
+    \item \href{#method-Ggplot2Adapter-get_system_name}{\code{Ggplot2Adapter$get_system_name()}}
+    \item \href{#method-Ggplot2Adapter-get_adapter}{\code{Ggplot2Adapter$get_adapter()}}
+    \item \href{#method-Ggplot2Adapter-has_facets}{\code{Ggplot2Adapter$has_facets()}}
+    \item \href{#method-Ggplot2Adapter-is_patchwork}{\code{Ggplot2Adapter$is_patchwork()}}
+    \item \href{#method-Ggplot2Adapter-ribbon_is_area}{\code{Ggplot2Adapter$ribbon_is_area()}}
+    \item \href{#method-Ggplot2Adapter-segments_span_lanes}{\code{Ggplot2Adapter$segments_span_lanes()}}
+    \item \href{#method-Ggplot2Adapter-rect_spans_lanes}{\code{Ggplot2Adapter$rect_spans_lanes()}}
+    \item \href{#method-Ggplot2Adapter-unread_layer_type}{\code{Ggplot2Adapter$unread_layer_type()}}
+    \item \href{#method-Ggplot2Adapter-layer_drew_nothing}{\code{Ggplot2Adapter$layer_drew_nothing()}}
+    \item \href{#method-Ggplot2Adapter-clone}{\code{Ggplot2Adapter$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2Adapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-new}{}}}
-\subsection{Method \code{new()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$new()}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-initialize}{}}}
+\subsection{\code{Ggplot2Adapter$new()}}{
+  Initialize the ggplot2 adapter
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$new()}
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-can_handle"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-can_handle}{}}}
-\subsection{Method \code{can_handle()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$can_handle(plot_object)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$can_handle()}}{
+  Check if this adapter can handle a plot object
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$can_handle(plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The plot object to check}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if this adapter can handle the object, FALSE otherwise
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The plot object to check}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-TRUE if this adapter can handle the object, FALSE otherwise
-Detect the type of a single layer
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-detect_layer_type"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-detect_layer_type}{}}}
-\subsection{Method \code{detect_layer_type()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$detect_layer_type(layer, plot_object)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$detect_layer_type()}}{
+  Detect the type of a single layer
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$detect_layer_type(layer, plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The ggplot2 layer object to analyze}
+      \item{\code{plot_object}}{The parent plot object (for context)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    String indicating the layer type (e.g., "bar", "line", "point")
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer}}{The ggplot2 layer object to analyze}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-is_pie_coord"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-is_pie_coord}{}}}
+\subsection{\code{Ggplot2Adapter$is_pie_coord()}}{
+  Check if a bar layer is drawn as pie wedges
 
-\item{\code{plot_object}}{The parent plot object (for context)}
+\code{coord_radial()} produces a CoordRadial that does NOT inherit
+CoordPolar, so both class names have to be tested. \code{theta} decides
+what the angle encodes: only \code{theta = "y"} maps a bar's height
+onto the angle, which is a pie. \code{theta = "x"} keeps the height on
+the radius, which is a coxcomb/rose - still a bar chart, just bent.
+
+The coordinate system alone is not enough: a polar bar layer is a pie
+only when it draws ONE ring. \code{geom_col(aes(x = category))} under
+\code{coord_polar("y")} draws one concentric ring per x category - a
+bullseye - and a pie payload has no room for that second dimension, so
+such a layer keeps the bar classification it has always had.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$is_pie_coord(plot_object, layer = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The ggplot2 plot object}
+      \item{\code{layer}}{The layer being classified, or NULL for the plot's first}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the layer is drawn as a pie, FALSE otherwise
+  }
 }
-\if{html}{\out{</div>}}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-draws_single_ring"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-draws_single_ring}{}}}
+\subsection{\code{Ggplot2Adapter$draws_single_ring()}}{
+  Check if a layer occupies a single position on x
+
+The ring count has to come off the BUILT data: a mapping expression
+cannot say how many levels it has, and by build time ggplot2 has
+already resolved every constant form - the literal \code{""}, a
+one-level factor, a column holding one repeated value - to the same
+single x position. Each facet panel is its own pie, so constancy is
+asked of each panel separately. A build that fails answers FALSE,
+leaving the layer classified the way it was before pie support.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$draws_single_ring(plot_object, layer = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The ggplot2 plot object}
+      \item{\code{layer}}{The layer being classified, or NULL for the plot's first}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when no panel holds more than one x position
+  }
 }
-\subsection{Returns}{
-String indicating the layer type (e.g., "bar", "line", "point")
-Create an orchestrator for this system (ggplot2)
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-find_layer_index"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-find_layer_index}{}}}
+\subsection{\code{Ggplot2Adapter$find_layer_index()}}{
+  Locate a layer among its plot's layers
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$find_layer_index(plot_object, layer = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The ggplot2 plot object}
+      \item{\code{layer}}{The layer to locate, or NULL for the plot's first}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer index into the plot's layers, or NULL when absent
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-create_orchestrator"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-create_orchestrator}{}}}
-\subsection{Method \code{create_orchestrator()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$create_orchestrator(plot_object)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$create_orchestrator()}}{
+  Create an orchestrator for this system (ggplot2)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$create_orchestrator(plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The ggplot2 plot object to process}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    PlotOrchestrator instance
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The ggplot2 plot object to process}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-PlotOrchestrator instance
-Get the system name
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-get_system_name"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-get_system_name}{}}}
-\subsection{Method \code{get_system_name()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$get_system_name()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$get_system_name()}}{
+  Get the system name
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$get_system_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    System name string
+  }
 }
 
-\subsection{Returns}{
-System name string
-Get a reference to this adapter (for use by orchestrator)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-get_adapter"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-get_adapter}{}}}
-\subsection{Method \code{get_adapter()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$get_adapter()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$get_adapter()}}{
+  Get a reference to this adapter (for use by orchestrator)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$get_adapter()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Self reference
+  }
 }
 
-\subsection{Returns}{
-Self reference
-Check if plot has facets
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-has_facets"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-has_facets}{}}}
-\subsection{Method \code{has_facets()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$has_facets(plot_object)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$has_facets()}}{
+  Check if plot has facets
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$has_facets(plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The ggplot2 plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if plot has facets, FALSE otherwise
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The ggplot2 plot object}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-TRUE if plot has facets, FALSE otherwise
-Check if plot is a patchwork plot
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-is_patchwork"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-is_patchwork}{}}}
-\subsection{Method \code{is_patchwork()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$is_patchwork(plot_object)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$is_patchwork()}}{
+  Check if plot is a patchwork plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$is_patchwork(plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_object}}{The ggplot2 plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE if plot is patchwork, FALSE otherwise
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot_object}}{The ggplot2 plot object}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-ribbon_is_area"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-ribbon_is_area}{}}}
+\subsection{\code{Ggplot2Adapter$ribbon_is_area()}}{
+  Whether a ribbon fills from a baseline rather than
+spanning two curves.
+
+\code{geom_ribbon(aes(ymin = 0, ymax = y))} is an area chart: the magnitude
+is the height of the fill, measured from a baseline the reader can
+assume. \code{geom_ribbon(aes(ymin = lo, ymax = hi))} draws the \emph{gap}, and
+its content is the distance between two edges rather than the height of
+either -- read as an area it would announce \code{hi} as a magnitude and drop
+\code{lo} entirely.
+
+The same distinction the Python binding draws for \code{fill_between()}, and
+drawn the same way: only an identically-zero lower edge is an area.
+
+Reads the built data rather than the mapping, because \code{ymin} may be a
+constant, a column, or a computed aesthetic, and only the built frame
+has resolved which. A layer that cannot be built is treated as a band,
+which is the reading that loses nothing: an area announced as an
+interval still carries both edges.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$ribbon_is_area(layer, plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The ggplot2 layer}
+      \item{\code{plot_object}}{The parent plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the ribbon is an area chart
+  }
 }
-\if{html}{\out{</div>}}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-segments_span_lanes"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-segments_span_lanes}{}}}
+\subsection{\code{Ggplot2Adapter$segments_span_lanes()}}{
+  Check whether a segment layer draws intervals in lanes
+
+Asked of the built data for the reason \code{ribbon_is_area()} is: a
+mapping expression cannot say whether the two ends of a segment agree,
+and by build time ggplot2 has resolved every spelling of the lane -- a
+factor, a character column, a repeated constant -- to the position it
+drew at.
+
+The whole layer is asked at once rather than each row, which is the
+rule xability/maidr#1100 settled for the same reading: one
+\code{geom_segment()} call can hold spans and edges together, and
+reading three spans out of four segments would announce a gantt quietly
+missing a quarter of its chart.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$segments_span_lanes(layer, plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The layer being classified}
+      \item{\code{plot_object}}{The ggplot2 plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the layer's segments lay intervals in lanes
+  }
 }
-\subsection{Returns}{
-TRUE if plot is patchwork, FALSE otherwise
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-rect_spans_lanes"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-rect_spans_lanes}{}}}
+\subsection{\code{Ggplot2Adapter$rect_spans_lanes()}}{
+  Check whether a declared rect layer draws intervals in lanes
+
+Asked through the \emph{same} predicate the processor will use, so the two
+cannot disagree about what a schedule is: \code{rect_gantt_frame()}
+renames the declared layer's bounds into the four columns
+\code{segment_lane_axis()} already reads, and the landed test decides.
+
+The degenerate case comes free rather than needing a rule of its own.
+Measured: a declared layer whose rectangles are all zero-width
+normalises to level on both axes, \code{segment_lane_axis()} returns
+NULL, and the layer is refused instead of being announced as a schedule
+of zero-length work -- which is the rule this file already applies to
+\code{geom_segment()}.
+
+Nothing else is asked of the rectangles. A guard on their shape is the
+structural rule the eight-chart table above the \code{GeomRect} branch
+of \code{detect_layer_type()} falsified, and a veto on a layer the
+author explicitly declared is near-useless anyway: measured, a declared
+monotone waterfall partitions on y and would pass one.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$rect_spans_lanes(layer, plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The layer being classified}
+      \item{\code{plot_object}}{The ggplot2 plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the layer's rectangles lay intervals in lanes
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-unread_layer_type"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-unread_layer_type}{}}}
+\subsection{\code{Ggplot2Adapter$unread_layer_type()}}{
+  The answer for a layer no branch above claimed
+
+\code{"unknown"} is what makes \code{has_unsupported_layers()} true and
+drops the whole plot to a static image. That is right for a layer
+carrying marks nothing describes: a filled \code{geom_polygon()} is
+drawn, and a reader told the chart was complete would be told wrong.
+
+It is not right for a layer that drew nothing. Then there is no mark,
+so there is nothing the reader is missing, and the chart pays
+everything to protect them from an absence. Measured with
+\code{save_html()} on thirty points:
+
+\preformatted{
+geom_point()                                interactive   50,406 bytes
+geom_point() + geom_point(data = d[0, ])    interactive   51,313 bytes
+geom_point() + geom_polygon(data = d[0, ])  base64 image  27,368 bytes
+geom_point() + geom_polygon()               base64 image  31,848 bytes
 }
+
+Rows two and three are the same chart in every way a reader could tell
+-- thirty points and a layer of nothing -- and only one of them was
+interactive, because its empty layer happened to be of a \emph{kind}
+this function names. Row four is the case the fallback exists for, and
+it keeps falling back.
+
+The case this turns up in is not contrived: a missing \strong{Suggests}
+package. \code{geom_quantile()} without \pkg{quantreg} warns, computes
+no rows and draws nothing; ggplot2 carries on and r-maidr turned the
+whole figure into a picture, with no second warning connecting the two
+(#227).
+
+A plot made only of such layers still falls back, for the reason #176
+gives: \code{has_unsupported_layers()} is true when \emph{every} layer
+is \code{"skip"} as well, so "nothing unsupported" cannot quietly come
+to mean "nothing at all".
+
+Nothing here decides which geoms are readable. A \code{geom_polygon()}
+with data in it is still \code{"unknown"} and still costs its chart
+exactly what it costs today.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$unread_layer_type(layer, plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The layer being classified}
+      \item{\code{plot_object}}{The ggplot2 plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    \code{"skip"} when the layer drew no rows, \code{"unknown"}
+otherwise
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2Adapter-layer_drew_nothing"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2Adapter-layer_drew_nothing}{}}}
+\subsection{\code{Ggplot2Adapter$layer_drew_nothing()}}{
+  Whether a layer put no mark on the page at all
+
+A layer's rows can vanish in its input, in a filter, in an aggregate
+over no groups, or -- the case #227 was found through -- in a stat that
+could not run because a \strong{Suggests} package is absent. All four
+arrive here identically: \code{ggplot_build()} reports zero rows for
+that layer while ggplot2 warns, draws the rest of the chart and carries
+on.
+
+Asked by \code{unread_layer_type()}, which turns it into \code{"skip"}
+rather than \code{"unknown"}, and by the quantile branch of
+\code{detect_layer_type()}, which uses it to keep from claiming a
+curve that was never drawn (#229). Kept as its own method for that
+second caller: a rule two branches ask is a rule, not a fall-through.
+
+Declines whenever the build cannot answer -- it raised, or gave this
+layer no frame. Absent is not empty: a build that said nothing about
+what a layer drew must not have that read as "it drew nothing", which
+would wave a mark through as harmless.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$layer_drew_nothing(layer, plot_object)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer}}{The layer being asked about}
+      \item{\code{plot_object}}{The ggplot2 plot object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when the layer built no rows
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2Adapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2Adapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2Adapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2Adapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2Adapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

@@ -1,5 +1,6 @@
 #' Base R Line Plot Layer Processor
 #'
+#' @description
 #' Processes Base R line plot layers based on recorded plot calls
 #'
 #' @keywords internal
@@ -7,11 +8,21 @@ BaseRLineLayerProcessor <- R6::R6Class(
   "BaseRLineLayerProcessor",
   inherit = LayerProcessor,
   public = list(
+    #' @description Process the layer: read its data, selectors, axis titles and main title from
+    #'   the recorded call
+    #' @param plot Unused; present for the processor interface
+    #' @param layout Unused; present for the processor interface
+    #' @param built Unused; present for the processor interface
+    #' @param gt Gtable of the replayed drawing, searched for selectors (optional)
+    #' @param grob_id Unused; present for the processor interface
+    #' @param panel_id Unused; present for the processor interface
+    #' @param panel_ctx Unused; present for the processor interface
+    #' @param layer_info Layer information with the recorded call
+    #' @return List describing the layer for the MAIDR payload
     process = function(plot,
                        layout,
                        built = NULL,
                        gt = NULL,
-                       scale_mapping = NULL,
                        grob_id = NULL,
                        panel_id = NULL,
                        panel_ctx = NULL,
@@ -29,9 +40,16 @@ BaseRLineLayerProcessor <- R6::R6Class(
         axes = axes
       )
     },
+    #' @description Whether the plot data must be reordered before drawing; a Base R layer is read
+    #'   from the recorded call and never is
+    #' @return FALSE
     needs_reordering = function() {
       FALSE
     },
+    #' @description One series per line: a vector, each column of a matrix, a time series, or the
+    #'   endpoints of `abline()`
+    #' @param layer_info Layer information with the recorded call
+    #' @return List of series
     extract_data = function(layer_info) {
       if (is.null(layer_info)) {
         return(list())
@@ -46,13 +64,69 @@ BaseRLineLayerProcessor <- R6::R6Class(
         return(self$extract_abline_data(layer_info))
       }
 
-      x <- args[[1]]
-      y <- args[[2]]
+      # curve()'s own arguments hold no coordinates -- the first one is an
+      # unevaluated expression -- so the wrapper stores the x/y curve()
+      # returned after drawing them. See curve_recorded_values().
+      curve_data <- args$.maidr_curve_data
+      if (!is.null(curve_data)) {
+        return(self$extract_single_line_data(
+          curve_data$x,
+          curve_data$y,
+          self$get_axis_labels(layer_info, axis_side = 1)
+        ))
+      }
+
+      # Resolve x/y the way plot()/lines() do: named args win, then the
+      # first two UNNAMED arguments. Positional args[[2]] would grab
+      # graphical parameters instead (plot(x, type = "l") -> y = "l") and
+      # crash for single-argument calls like lines(v).
+      xy <- resolve_xy_args(args)
+      x <- xy$x
+      y <- xy$y
+
+      if (is.null(x) || is.language(x) || is.language(y)) {
+        # Formula interface / NSE-recorded expressions carry no plottable
+        # values here; emit no points rather than garbage.
+        return(list())
+      }
+
+      is_multiline <- is.matrix(y) || (is.array(y) && length(dim(y)) == 2)
+
+      # matplot()/matlines()/matpoints() draw one series per COLUMN against
+      # the row index, so a lone matrix argument is a set of series, not an
+      # xy.coords pair. Letting xy.coords() interpret it would read a
+      # two-column matrix as x = column 1, y = column 2 -- discarding every
+      # series but one and announcing series 1's values as x coordinates.
+      # plot()/lines() keep the xy.coords reading, which is correct there.
+      matrix_series_call <- function_name %in%
+        c("matplot", "matlines", "matpoints")
+
+      if (
+        is.null(y) &&
+          matrix_series_call &&
+          (is.matrix(x) || (is.array(x) && length(dim(x)) == 2))
+      ) {
+        y <- x
+        x <- seq_len(nrow(y))
+        is_multiline <- TRUE
+      }
+
+      if (is.null(y) && !is_multiline) {
+        # Single-vector call (plot(v, type = "l"), lines(v)):
+        # x becomes the index and the vector supplies the y values.
+        coords <- tryCatch(
+          grDevices::xy.coords(x, NULL),
+          error = function(e) NULL
+        )
+        if (is.null(coords)) {
+          return(list())
+        }
+        x <- coords$x
+        y <- coords$y
+      }
 
       # Check for custom axis labels from axis() calls
       x_labels <- self$get_axis_labels(layer_info, axis_side = 1)
-
-      is_multiline <- is.matrix(y) || (is.array(y) && length(dim(y)) == 2)
 
       if (is_multiline) {
         self$extract_multiline_data(x, y, x_labels)
@@ -60,7 +134,7 @@ BaseRLineLayerProcessor <- R6::R6Class(
         self$extract_single_line_data(x, y, x_labels)
       }
     },
-    #' Get custom axis labels from axis() LOW-level calls
+    #' @description Get custom axis labels from axis() LOW-level calls
     #' @param layer_info Layer information containing group data
     #' @param axis_side Which axis (1=bottom/x, 2=left/y, 3=top, 4=right)
     #' @return Character vector of labels or NULL if not found
@@ -88,6 +162,11 @@ BaseRLineLayerProcessor <- R6::R6Class(
 
       NULL
     },
+    #' @description The points of one line, pairing each x with its y
+    #' @param x x positions
+    #' @param y y values
+    #' @param x_labels Category labels to announce in place of the x positions (optional)
+    #' @return List holding one series
     extract_single_line_data = function(x, y, x_labels = NULL) {
       data_points <- list()
 
@@ -97,8 +176,8 @@ BaseRLineLayerProcessor <- R6::R6Class(
       # Use custom axis labels if available, otherwise use x values
       use_labels <- !is.null(x_labels) && length(x_labels) >= n
 
-      for (i in 1:n) {
-        x_value <- if (use_labels) x_labels[i] else as.character(x[i])
+      for (i in seq_len(n)) {
+        x_value <- if (use_labels) x_labels[i] else line_x_value(x[i])
         data_points[[i]] <- list(
           x = x_value,
           y = as.numeric(y[i])
@@ -107,6 +186,11 @@ BaseRLineLayerProcessor <- R6::R6Class(
 
       list(data_points)
     },
+    #' @description One series per column of `y_matrix`, named after the columns
+    #' @param x x positions
+    #' @param y_matrix One column of y values per series
+    #' @param x_labels Category labels to announce in place of the x positions (optional)
+    #' @return List of series
     extract_multiline_data = function(x, y_matrix, x_labels = NULL) {
       series_names <- colnames(y_matrix)
       if (is.null(series_names)) {
@@ -128,8 +212,8 @@ BaseRLineLayerProcessor <- R6::R6Class(
         # Use custom axis labels if available, otherwise use x values
         use_labels <- !is.null(x_labels) && length(x_labels) >= n
 
-        for (i in 1:n) {
-          x_value <- if (use_labels) x_labels[i] else as.character(x[i])
+        for (i in seq_len(n)) {
+          x_value <- if (use_labels) x_labels[i] else line_x_value(x[i])
           series_points[[i]] <- list(
             x = x_value,
             y = as.numeric(series_y[i]),
@@ -142,9 +226,13 @@ BaseRLineLayerProcessor <- R6::R6Class(
 
       series_list
     },
+    #' @description The axis titles, taken from the HIGH-level call for an overlay such as
+    #'   `abline()`
+    #' @param layer_info Layer information with the recorded call
+    #' @return Canonical axes list
     extract_axis_titles = function(layer_info) {
       if (is.null(layer_info)) {
-        return(build_axes(x = "", y = ""))
+        return(build_axes())
       }
 
       function_name <- layer_info$function_name
@@ -155,20 +243,35 @@ BaseRLineLayerProcessor <- R6::R6Class(
         group <- layer_info$group
         if (!is.null(group) && !is.null(group$high_call)) {
           high_args <- group$high_call$args
-          x_title <- if (!is.null(high_args$xlab)) high_args$xlab else ""
-          y_title <- if (!is.null(high_args$ylab)) high_args$ylab else ""
-          return(build_axes(x = x_title, y = y_title))
+          return(build_axes(
+            x = recorded_axis_label(high_args, "xlab"),
+            y = recorded_axis_label(high_args, "ylab")
+          ))
         }
       }
 
       plot_call <- layer_info$plot_call
       args <- plot_call$args
 
-      x_title <- if (!is.null(args$xlab)) args$xlab else ""
-      y_title <- if (!is.null(args$ylab)) args$ylab else ""
+      # curve() derives its labels internally (x name, deparsed
+      # expression) rather than taking them from the call, so they are
+      # recorded alongside the drawn points. An explicit xlab/ylab still
+      # wins, exactly as it does inside curve().
+      #
+      # Nothing else here carries a default: a line drawn by plot() or
+      # matplot() runs over whatever the caller measured, and the recorded
+      # arguments are evaluated values that no longer name it. The renderer's
+      # generic is the honest answer, so no label is emitted.
+      curve_labels <- args$.maidr_curve_data$labels
 
-      build_axes(x = x_title, y = y_title)
+      build_axes(
+        x = recorded_axis_label(args, "xlab", curve_labels$x),
+        y = recorded_axis_label(args, "ylab", curve_labels$y)
+      )
     },
+    #' @description The endpoints of an `abline()` call across the axis the HIGH-level call set up
+    #' @param layer_info Layer information with the recorded call
+    #' @return List holding one two-point series, or empty
     extract_abline_data = function(layer_info) {
       plot_call <- layer_info$plot_call
       args <- plot_call$args
@@ -253,40 +356,50 @@ BaseRLineLayerProcessor <- R6::R6Class(
 
       list(data_points)
     },
+    #' @description The x extent of the group's HIGH-level call, as the axis was drawn
+    #' @param group The recorded plot group holding the HIGH-level call
+    #' @return Numeric vector of two, or NULL
     get_x_range_from_group = function(group) {
       if (is.null(group) || is.null(group$high_call)) {
         return(NULL)
       }
 
       high_args <- group$high_call$args
-      x_data <- high_args[[1]]
-
-      if (is.null(x_data) || !is.numeric(x_data)) {
-        return(NULL)
-      }
-
-      x_min <- min(x_data, na.rm = TRUE)
-      x_max <- max(x_data, na.rm = TRUE)
-      x_padding <- (x_max - x_min) * 0.05
-      c(x_min - x_padding, x_max + x_padding)
+      self$axis_extent(high_args$xlim, resolve_xy_args(high_args)$x)
     },
+    #' @description The y extent of the group's HIGH-level call, as the axis was drawn
+    #' @param group The recorded plot group holding the HIGH-level call
+    #' @return Numeric vector of two, or NULL
     get_y_range_from_group = function(group) {
       if (is.null(group) || is.null(group$high_call)) {
         return(NULL)
       }
 
       high_args <- group$high_call$args
-      y_data <- high_args[[2]]
-
-      if (is.null(y_data) || !is.numeric(y_data)) {
+      self$axis_extent(high_args$ylim, resolve_xy_args(high_args)$y)
+    },
+    #' @description The extent of an axis the way `plot.default()` sets it: an explicit
+    #' `xlim`/`ylim`, or the finite data extended by 4 % each way, which is
+    #' what `abline()` draws its clipped line across.
+    #' @param limits An explicit `xlim`/`ylim`, or NULL
+    #' @param data The plotted values on that axis
+    #' @return Numeric vector of two, or NULL when nothing finite was plotted
+    axis_extent = function(limits, data) {
+      if (is.numeric(limits) && length(limits) == 2L && all(is.finite(limits))) {
+        return(grDevices::extendrange(limits, f = 0.04))
+      }
+      if (is.null(data) || !is.numeric(data)) {
         return(NULL)
       }
-
-      y_min <- min(y_data, na.rm = TRUE)
-      y_max <- max(y_data, na.rm = TRUE)
-      y_padding <- (y_max - y_min) * 0.05
-      c(y_min - y_padding, y_max + y_padding)
+      data <- data[is.finite(data)]
+      if (length(data) == 0L) {
+        return(NULL)
+      }
+      grDevices::extendrange(range(data), f = 0.04)
     },
+    #' @description The main title, taken from the HIGH-level call for `abline()`
+    #' @param layer_info Layer information with the recorded call
+    #' @return Character string
     extract_main_title = function(layer_info) {
       if (is.null(layer_info)) {
         return("")
@@ -300,7 +413,7 @@ BaseRLineLayerProcessor <- R6::R6Class(
         group <- layer_info$group
         if (!is.null(group) && !is.null(group$high_call)) {
           high_args <- group$high_call$args
-          main_title <- if (!is.null(high_args$main)) high_args$main else ""
+          main_title <- recorded_main_title(high_args)
           return(main_title)
         }
       }
@@ -308,9 +421,13 @@ BaseRLineLayerProcessor <- R6::R6Class(
       plot_call <- layer_info$plot_call
       args <- plot_call$args
 
-      main_title <- if (!is.null(args$main)) args$main else ""
+      main_title <- recorded_main_title(args)
       main_title
     },
+    #' @description One selector per polyline, in series order
+    #' @param layer_info Layer information with the recorded call
+    #' @param gt Gtable of the replayed drawing (optional)
+    #' @return List of selectors
     generate_selectors = function(layer_info, gt = NULL) {
       selectors <- list()
 
@@ -327,6 +444,11 @@ BaseRLineLayerProcessor <- R6::R6Class(
 
       selectors
     },
+    #' @description Find every grob of the given family drawn by the plot group at `group_index`
+    #' @param grob The grob tree to search
+    #' @param group_index Index of the recorded plot group, which numbers the panel's grobs
+    #' @param grob_type The grob family to match: "lines", "abline", "segments", "spike" or "step"
+    #' @return Character vector of grob names
     find_lines_grobs = function(grob, group_index, grob_type = "lines") {
       names <- character(0)
 
@@ -335,6 +457,29 @@ BaseRLineLayerProcessor <- R6::R6Class(
         if (grob_type == "abline") {
           # Pattern for abline: graphics-plot-{group_index}-abline-*
           pattern <- paste0("^graphics-plot-", group_index, "-abline-")
+        } else if (grob_type == "spike") {
+          # `type = "h"` draws its verticals under `-spike-`, the same way a
+          # stairstep lands under `-step-`. One grob holds every spike of the
+          # layer, so one name is expected here rather than one per point
+          # (#239).
+          pattern <- paste0("^graphics-plot-", group_index, "-spike-[0-9]+$")
+        } else if (grob_type == "segments") {
+          # `segments()` is its own drawing call, not a `lines()` variant, so
+          # gridGraphics names its grobs `-segments-` and the line search
+          # finds none. `monthplot(type = "h")` is the caller that needs it:
+          # it draws each cycle position's spikes with `segments()` rather
+          # than handing `type = "h"` to `lines()`, so neither the line name
+          # nor the `-spike-` one above applies. One grob per call, holding
+          # every segment that call drew.
+          pattern <- paste0("^graphics-plot-", group_index, "-segments-[0-9]+$")
+        } else if (grob_type == "step") {
+          # gridGraphics names a stairstep grob after the `type` letter that
+          # drew it -- `-step-` for type = "s", `-Step-` for type = "S" --
+          # never `-lines-`. A step layer searching for the line name finds
+          # nothing, and a layer that emits zero selectors is dropped by the
+          # frontend's `selectors.length === series count` precondition,
+          # which kills highlighting for the whole layer.
+          pattern <- paste0("^graphics-plot-", group_index, "-[sS]tep-[0-9]+$")
         } else {
           # Pattern for lines: graphics-plot-{group_index}-lines-{index}
           pattern <- paste0("^graphics-plot-", group_index, "-lines-[0-9]+$")
@@ -368,10 +513,23 @@ BaseRLineLayerProcessor <- R6::R6Class(
 
       names
     },
-    generate_selectors_from_grob = function(grob, group_index, layer_info) {
-      # Determine grob type based on function name
+    #' @description Which family of grob names this layer's selectors are drawn from:
+    #' "abline", "lines", "segments", "spike" or "step". Overridden by
+    #' subclasses whose geometry lands under a different grob name (see
+    #' BaseRStepLayerProcessor).
+    #' @param layer_info Layer information with the recorded call
+    #' @return "abline" or "lines"
+    selector_grob_type = function(layer_info) {
       function_name <- if (!is.null(layer_info)) layer_info$function_name else "lines"
-      grob_type <- if (function_name == "abline") "abline" else "lines"
+      if (function_name == "abline") "abline" else "lines"
+    },
+    #' @description One selector per matching polyline, sorted by the grob number
+    #' @param grob The grob tree to search
+    #' @param group_index Index of the recorded plot group, which numbers the panel's grobs
+    #' @param layer_info Layer information with the recorded call
+    #' @return List of selectors
+    generate_selectors_from_grob = function(grob, group_index, layer_info) {
+      grob_type <- self$selector_grob_type(layer_info)
 
       # Returns ALL matching grobs (for multiline support)
       lines_names <- self$find_lines_grobs(grob, group_index, grob_type)
@@ -380,7 +538,13 @@ BaseRLineLayerProcessor <- R6::R6Class(
         return(list())
       }
 
-      lines_names <- sort(lines_names)
+      # Sort by the trailing grob number: lexicographic sort would place
+      # "...-lines-10" before "...-lines-2", mapping series 10+ to the
+      # wrong polylines.
+      grob_numbers <- suppressWarnings(
+        as.integer(sub(".*-([0-9]+)$", "\\1", lines_names))
+      )
+      lines_names <- lines_names[order(grob_numbers)]
 
       # Each grob becomes one selector
       selectors <- lapply(lines_names, function(name) {

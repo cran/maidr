@@ -8,124 +8,295 @@ Processes Base R scatter plot layers based on recorded plot calls
 }
 \keyword{internal}
 \section{Super class}{
-\code{\link[maidr:LayerProcessor]{maidr::LayerProcessor}} -> \code{BaseRPointLayerProcessor}
+\code{\link[maidr:LayerProcessor]{LayerProcessor}} -> \code{BaseRPointLayerProcessor}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-BaseRPointLayerProcessor-process}{\code{BaseRPointLayerProcessor$process()}}
-\item \href{#method-BaseRPointLayerProcessor-needs_reordering}{\code{BaseRPointLayerProcessor$needs_reordering()}}
-\item \href{#method-BaseRPointLayerProcessor-extract_data}{\code{BaseRPointLayerProcessor$extract_data()}}
-\item \href{#method-BaseRPointLayerProcessor-extract_axis_titles}{\code{BaseRPointLayerProcessor$extract_axis_titles()}}
-\item \href{#method-BaseRPointLayerProcessor-extract_base_r_axis_grid_info}{\code{BaseRPointLayerProcessor$extract_base_r_axis_grid_info()}}
-\item \href{#method-BaseRPointLayerProcessor-extract_main_title}{\code{BaseRPointLayerProcessor$extract_main_title()}}
-\item \href{#method-BaseRPointLayerProcessor-generate_selectors}{\code{BaseRPointLayerProcessor$generate_selectors()}}
-\item \href{#method-BaseRPointLayerProcessor-clone}{\code{BaseRPointLayerProcessor$clone()}}
+  \itemize{
+    \item \href{#method-BaseRPointLayerProcessor-process}{\code{BaseRPointLayerProcessor$process()}}
+    \item \href{#method-BaseRPointLayerProcessor-needs_reordering}{\code{BaseRPointLayerProcessor$needs_reordering()}}
+    \item \href{#method-BaseRPointLayerProcessor-extract_data}{\code{BaseRPointLayerProcessor$extract_data()}}
+    \item \href{#method-BaseRPointLayerProcessor-resolve_coordinates}{\code{BaseRPointLayerProcessor$resolve_coordinates()}}
+    \item \href{#method-BaseRPointLayerProcessor-formula_variables}{\code{BaseRPointLayerProcessor$formula_variables()}}
+    \item \href{#method-BaseRPointLayerProcessor-extract_axis_titles}{\code{BaseRPointLayerProcessor$extract_axis_titles()}}
+    \item \href{#method-BaseRPointLayerProcessor-extract_base_r_axis_grid_info}{\code{BaseRPointLayerProcessor$extract_base_r_axis_grid_info()}}
+    \item \href{#method-BaseRPointLayerProcessor-extract_main_title}{\code{BaseRPointLayerProcessor$extract_main_title()}}
+    \item \href{#method-BaseRPointLayerProcessor-generate_selectors}{\code{BaseRPointLayerProcessor$generate_selectors()}}
+    \item \href{#method-BaseRPointLayerProcessor-clone}{\code{BaseRPointLayerProcessor$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="apply_scale_mapping"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-apply_scale_mapping'><code>maidr::LayerProcessor$apply_scale_mapping()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>maidr::LayerProcessor$augment_plot()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>maidr::LayerProcessor$extract_layer_axes()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>maidr::LayerProcessor$get_last_result()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>maidr::LayerProcessor$get_layer_index()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>maidr::LayerProcessor$initialize()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>maidr::LayerProcessor$needs_augmentation()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>maidr::LayerProcessor$reorder_layer_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>maidr::LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>LayerProcessor$augment_plot()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>LayerProcessor$extract_layer_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_grob_tree"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_grob_tree'><code>LayerProcessor$find_layer_grob_tree()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_polyline_grob"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_polyline_grob'><code>LayerProcessor$find_layer_polyline_grob()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>LayerProcessor$get_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_built_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_built_data'><code>LayerProcessor$get_layer_built_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>LayerProcessor$get_layer_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_own_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_own_layer'><code>LayerProcessor$get_own_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>LayerProcessor$initialize()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_flipped_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_flipped_layer'><code>LayerProcessor$is_flipped_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_horizontal_call"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_horizontal_call'><code>LayerProcessor$is_horizontal_call()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="layer_polyline_grobs"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-layer_polyline_grobs'><code>LayerProcessor$layer_polyline_grobs()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>LayerProcessor$needs_augmentation()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="other_geom_grob_prefixes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-other_geom_grob_prefixes'><code>LayerProcessor$other_geom_grob_prefixes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>LayerProcessor$reorder_layer_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="resolve_panel_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-resolve_panel_index'><code>LayerProcessor$resolve_panel_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="swap_point_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-swap_point_axes'><code>LayerProcessor$swap_point_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_columns"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_columns'><code>LayerProcessor$unflip_columns()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_panel_params"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_panel_params'><code>LayerProcessor$unflip_panel_params()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$process(
+\subsection{\code{BaseRPointLayerProcessor$process()}}{
+  Process the layer: read its data, selectors, axis titles and main title from
+the recorded call
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$process(
   plot,
   layout,
   built = NULL,
   gt = NULL,
-  scale_mapping = NULL,
   grob_id = NULL,
   panel_id = NULL,
   panel_ctx = NULL,
   layer_info = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{Unused; present for the processor interface}
+      \item{\code{layout}}{Unused; present for the processor interface}
+      \item{\code{built}}{Unused; present for the processor interface}
+      \item{\code{gt}}{Gtable of the replayed drawing, searched for selectors (optional)}
+      \item{\code{grob_id}}{Unused; present for the processor interface}
+      \item{\code{panel_id}}{Unused; present for the processor interface}
+      \item{\code{panel_ctx}}{Unused; present for the processor interface}
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List describing the layer for the MAIDR payload
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-needs_reordering"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-needs_reordering}{}}}
-\subsection{Method \code{needs_reordering()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$needs_reordering()}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$needs_reordering()}}{
+  Whether the plot data must be reordered before drawing; a Base R layer is read
+from the recorded call and never is
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$needs_reordering()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    FALSE
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$extract_data(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$extract_data()}}{
+  One point per observation, from the recorded x and y or from the formula's
+model frame
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$extract_data(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of points
+  }
 }
 
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRPointLayerProcessor-resolve_coordinates"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-resolve_coordinates}{}}}
+\subsection{\code{BaseRPointLayerProcessor$resolve_coordinates()}}{
+  The x and y a recorded call plots, resolved as plot() resolves them.
+
+\code{plot(y ~ x, data = d)} carries a formula rather than two vectors, and
+its coordinates are the two columns of the model frame the recording
+kept (#254). Read from \code{resolve_xy_args()} alone, the formula is a
+language object and the layer came out with no points at all -- an
+interactive chart with nothing in it.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$resolve_coordinates(plot_call)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_call}}{The recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A list with \code{x} and \code{y}, either of which may be NULL
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-BaseRPointLayerProcessor-formula_variables"></a>}}
+\if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-formula_variables}{}}}
+\subsection{\code{BaseRPointLayerProcessor$formula_variables()}}{
+  The two numeric variables of a recorded formula call, or NULL.
+
+Only a numeric pair is a scatter: \code{plot(y ~ f)} on a factor draws a
+box plot through \code{plot.factor()}, and a frame with more than one
+predictor draws something else again. Both are left as they were.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$formula_variables(plot_call)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot_call}}{The recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A list with \code{x}, \code{y}, \code{x_name}, \code{y_name}, or NULL
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-extract_axis_titles"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-extract_axis_titles}{}}}
-\subsection{Method \code{extract_axis_titles()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$extract_axis_titles(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$extract_axis_titles()}}{
+  Extract axis information from Base R plot call
+
+Returns per-axis objects with an optional label and optional grid
+navigation fields (min, max, tickStep). Grid fields are derived from
+xlim/ylim args or data range, and tick intervals via pretty(). Every
+field is included only when extraction succeeds, and an axis that ends
+up with none of them is left out of the payload entirely.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$extract_axis_titles(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with recorded plot call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Canonical axes list
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-extract_base_r_axis_grid_info"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-extract_base_r_axis_grid_info}{}}}
-\subsection{Method \code{extract_base_r_axis_grid_info()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$extract_base_r_axis_grid_info(data, lim = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$extract_base_r_axis_grid_info()}}{
+  Extract grid navigation info for a Base R axis
+
+Computes min, max from xlim/ylim or data range, and tickStep from
+pretty() tick positions. Returns NULL if extraction fails.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$extract_base_r_axis_grid_info(data, lim = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{data}}{Numeric vector of data values}
+      \item{\code{lim}}{Optional axis limits (xlim or ylim)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with min, max, tickStep or NULL
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-extract_main_title"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-extract_main_title}{}}}
-\subsection{Method \code{extract_main_title()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$extract_main_title(layer_info)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$extract_main_title()}}{
+  The main title of the recorded call, or an empty string
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$extract_main_title(layer_info)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$generate_selectors(layer_info, gt = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$generate_selectors()}}{
+  The selector for the points, scoped to this layer's plot group
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$generate_selectors(layer_info, gt = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_info}}{Layer information with the recorded call}
+      \item{\code{gt}}{Gtable of the replayed drawing (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-BaseRPointLayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-BaseRPointLayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{BaseRPointLayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{BaseRPointLayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{BaseRPointLayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

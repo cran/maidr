@@ -27,6 +27,12 @@ as_axis_config <- function(value) {
     return(NULL)
   }
   if (is.list(value)) {
+    # An axis with nothing to say is not emitted at all: an empty list
+    # serializes as `[]`, and a key holding it would claim an axis config
+    # that carries neither a label nor a navigation grid.
+    if (length(value) == 0) {
+      return(NULL)
+    }
     return(value)
   }
   if (is.character(value) || is.numeric(value)) {
@@ -61,17 +67,41 @@ extract_axis_label <- function(value, default = "") {
   as.character(value)
 }
 
+#' Build a single AxisConfig
+#'
+#' Drops the fields that are absent, so an axis only carries what its caller
+#' could establish. Returns a named empty list when nothing could be: passed
+#' to [build_axes()], that drops the axis key entirely.
+#'
+#' @param label Axis label, or NULL
+#' @param min Axis minimum, or NULL
+#' @param max Axis maximum, or NULL
+#' @param tickStep Distance between ticks, or NULL
+#' @return A named list (AxisConfig), possibly empty
+#' @keywords internal
+build_axis_config <- function(label = NULL, min = NULL, max = NULL, tickStep = NULL) {
+  cfg <- structure(list(), names = character(0))
+  if (!is.null(label)) cfg$label <- as.character(label)
+  if (!is.null(min)) cfg$min <- min
+  if (!is.null(max)) cfg$max <- max
+  if (!is.null(tickStep)) cfg$tickStep <- tickStep
+  cfg
+}
+
 #' Build a canonical axes object
 #'
-#' Convenience constructor for a per-axis axes list. Drops NULL axes.
+#' Convenience constructor for a per-axis axes list. Drops NULL and empty
+#' axes, so a caller that can say nothing about an axis simply omits the key
+#' and leaves the generic to the renderer.
 #'
 #' @param x Label string or AxisConfig list for the x axis (or NULL)
 #' @param y Label string or AxisConfig list for the y axis (or NULL)
 #' @param z Label string or AxisConfig list for the z axis (or NULL)
-#' @return A canonical axes list with only non-NULL axes set
+#' @return A canonical axes list with only non-NULL axes set. Named even when
+#'   empty, so it serializes as the JSON object `{}` rather than as `[]`.
 #' @keywords internal
 build_axes <- function(x = NULL, y = NULL, z = NULL) {
-  axes <- list()
+  axes <- structure(list(), names = character(0))
   x_cfg <- as_axis_config(x)
   y_cfg <- as_axis_config(y)
   z_cfg <- as_axis_config(z)
@@ -79,6 +109,102 @@ build_axes <- function(x = NULL, y = NULL, z = NULL) {
   if (!is.null(y_cfg)) axes$y <- y_cfg
   if (!is.null(z_cfg)) axes$z <- z_cfg
   axes
+}
+
+#' Resolve the legend title for a grouping aesthetic
+#'
+#' Returns the title ggplot2 prints above the legend for a grouping
+#' aesthetic, which is what the MAIDR payload emits as the z axis label.
+#' A \code{labs()} override wins (ggplot2 stores it on the built plot's
+#' \code{labels}, normalising \code{color} to \code{colour}); otherwise the
+#' mapped expression is used, with the layer's own mapping taking precedence
+#' over the plot-level one. Returns NULL when the aesthetic carries neither.
+#'
+#' Callers are responsible for only asking about an aesthetic the layer is
+#' actually grouped by: \code{labs()} records a title even for an unmapped
+#' aesthetic, so an unguarded lookup would invent a legend that the plot does
+#' not draw.
+#'
+#' @param plot The ggplot object
+#' @param built Built plot from \code{ggplot2::ggplot_build()}, or NULL to
+#'   build one on demand
+#' @param aes_names Aesthetic names to try, in order. Pass spelling variants
+#'   of one aesthetic (for example \code{c("colour", "color")}), never
+#'   unrelated aesthetics.
+#' @param layer_index Index of the layer whose mapping takes precedence, or
+#'   NULL to consult only the plot-level mapping
+#' @return Character scalar, or NULL when the aesthetic has no title
+#' @keywords internal
+resolve_legend_label <- function(plot, built = NULL, aes_names = "fill",
+                                 layer_index = NULL) {
+  labels <- if (!is.null(built)) {
+    built$plot$labels
+  } else {
+    tryCatch(ggplot2::ggplot_build(plot)$plot$labels, error = function(e) NULL)
+  }
+
+  for (aes_name in aes_names) {
+    label <- labels[[aes_name]]
+    if (!is.null(label) && length(label) == 1L && !is.na(label) &&
+      nzchar(as.character(label))) {
+      return(as.character(label))
+    }
+  }
+
+  mappings <- list()
+  if (!is.null(layer_index) && length(plot$layers) >= layer_index) {
+    mappings[[length(mappings) + 1L]] <- plot$layers[[layer_index]]$mapping
+  }
+  mappings[[length(mappings) + 1L]] <- plot$mapping
+
+  for (mapping in mappings) {
+    if (is.null(mapping)) next
+    for (aes_name in aes_names) {
+      quo <- mapping[[aes_name]]
+      if (!is.null(quo)) {
+        return(rlang::as_label(quo))
+      }
+    }
+  }
+
+  NULL
+}
+
+#' Resolve the printed label for a positional axis
+#'
+#' The name ggplot2 prints beside the x or y axis, which is the name a
+#' reader needs in order to know what the numbers are. A \code{labs()}
+#' override wins, then the layer's own mapping, then the plot's -- the same
+#' chain \code{resolve_legend_label()} walks for a legend title, because it
+#' is the same chain ggplot2 walks.
+#'
+#' The difference from the legend case is only what to do when none of them
+#' answers. A legend that has no title should have none; a positional axis
+#' always has one printed on the chart, so the aesthetic name is emitted
+#' rather than nothing. That is a poor label, but it is a label, and the
+#' alternative is a number announced with no name at all.
+#'
+#' \code{resolve_legend_label()}'s documented caution -- that \code{labs()}
+#' records a title even for an unmapped aesthetic, so only ask about one the
+#' layer is grouped by -- does not apply here. A layer with no x or y mapping
+#' has no positions to announce and does not reach a processor that would
+#' ask.
+#'
+#' @param plot The ggplot object
+#' @param built Built plot from \code{ggplot2::ggplot_build()}, or NULL to
+#'   build one on demand
+#' @param aes_name \code{"x"} or \code{"y"}
+#' @param layer_index Index of the layer whose mapping takes precedence, or
+#'   NULL to consult only the plot-level mapping
+#' @return Character scalar, never NULL
+#' @keywords internal
+positional_axis_label <- function(plot, built = NULL, aes_name = "x",
+                                  layer_index = NULL) {
+  label <- resolve_legend_label(
+    plot, built,
+    aes_names = aes_name, layer_index = layer_index
+  )
+  if (is.null(label)) aes_name else label
 }
 
 #' Attach a format object to a specific axis
@@ -90,10 +216,13 @@ build_axes <- function(x = NULL, y = NULL, z = NULL) {
 #' @param axes Canonical axes list
 #' @param which Axis key: one of \code{"x"}, \code{"y"}, \code{"z"}
 #' @param format_obj AxisFormat list (or NULL)
-#' @param default_label Label to use if the axis slot is being created
+#' @param default_label Label to use if the axis slot is being created. NULL
+#'   (the default) creates the slot without one, so attaching a format to an
+#'   axis whose processor had no title to give does not put an empty label
+#'   back in front of the renderer's generic.
 #' @return The mutated axes list
 #' @keywords internal
-attach_axis_format <- function(axes, which, format_obj, default_label = "") {
+attach_axis_format <- function(axes, which, format_obj, default_label = NULL) {
   if (is.null(format_obj)) {
     return(axes)
   }
@@ -105,7 +234,11 @@ attach_axis_format <- function(axes, which, format_obj, default_label = "") {
     )
   }
   if (is.null(axes[[which]])) {
-    axes[[which]] <- list(label = default_label)
+    axes[[which]] <- if (is.null(default_label)) {
+      structure(list(), names = character(0))
+    } else {
+      list(label = default_label)
+    }
   } else if (!is.list(axes[[which]])) {
     # Defensive: wrap a stray bare string before mutating
     axes[[which]] <- list(label = as.character(axes[[which]]))
@@ -199,4 +332,106 @@ validate_axes <- function(axes, context = "") {
   }
 
   invisible(axes)
+}
+
+#' Grid navigation bounds for one axis
+#'
+#' `min`, `max` and `tickStep` for the axis named, read off the built plot's
+#' panel parameters, or `NULL` when any of the three cannot be determined --
+#' which leaves the axis with its label and no grid, the graceful degradation
+#' #158 settled on.
+#'
+#' Lifted out of `Ggplot2PointLayerProcessor`, which still calls it, when the
+#' rug processor came to need the same answer for the axis its ticks stand on
+#' (#222). Two readings of one grid rule is how the two would drift.
+#'
+#' @param built Built plot data
+#' @param axis Character, either "x" or "y"
+#' @param panel_id Panel index for faceted plots (optional, defaults to 1)
+#' @return List with min, max, tickStep, or NULL
+#' @keywords internal
+axis_grid_info <- function(built, axis = "x", panel_id = NULL) {
+  tryCatch(
+    {
+      # A transformed axis has no uniform tick step to give. Grid
+      # navigation walks the axis in equal increments, and on a log
+      # scale the breaks a reader sees -- 10, 100, 1000 -- are equally
+      # spaced only in the transformed space the points are no longer
+      # announced in. Emitting the transformed range instead would put
+      # the grid and the announcement in different spaces, which is
+      # worse than today, where the two are at least wrong together.
+      #
+      # So the axis keeps its label and loses its grid, which is the
+      # same graceful degradation this function already takes when a
+      # range cannot be read (#158).
+      if (!is.null(panel_transformation(built, axis, panel_id))) {
+        return(NULL)
+      }
+
+      panel_idx <- if (!is.null(panel_id)) as.integer(panel_id) else 1L
+      panel_params <- built$layout$panel_params[[panel_idx]]
+
+      if (is.null(panel_params)) {
+        return(NULL)
+      }
+
+      pp_axis <- panel_params[[axis]]
+      if (is.null(pp_axis)) {
+        return(NULL)
+      }
+
+      # Extract range from continuous_range
+      axis_range <- pp_axis$continuous_range
+      if (is.null(axis_range) || length(axis_range) < 2) {
+        return(NULL)
+      }
+
+      axis_min <- axis_range[1]
+      axis_max <- axis_range[2]
+
+      # Extract breaks to compute tickStep
+      axis_breaks <- pp_axis$breaks
+      if (is.null(axis_breaks) || length(axis_breaks) < 2) {
+        # Try alternative: get_breaks() from panel_scales
+        scale_obj <- if (axis == "x") {
+          built$layout$panel_scales_x[[panel_idx]]
+        } else {
+          built$layout$panel_scales_y[[panel_idx]]
+        }
+        if (!is.null(scale_obj)) {
+          axis_breaks <- tryCatch(scale_obj$get_breaks(), error = function(e) NULL)
+        }
+      }
+
+      if (is.null(axis_breaks) || length(axis_breaks) < 2) {
+        return(NULL)
+      }
+
+      # Remove NAs from breaks
+      axis_breaks <- axis_breaks[!is.na(axis_breaks)]
+      if (length(axis_breaks) < 2) {
+        return(NULL)
+      }
+
+      # Sort breaks and compute tickStep from first interval
+      axis_breaks <- sort(axis_breaks)
+      tick_step <- diff(axis_breaks)[1]
+
+      # Validate: all values must be finite and sensible
+      if (!is.finite(axis_min) || !is.finite(axis_max) || !is.finite(tick_step)) {
+        return(NULL)
+      }
+      if (axis_min >= axis_max) {
+        return(NULL)
+      }
+      if (tick_step <= 0 || tick_step > (axis_max - axis_min)) {
+        return(NULL)
+      }
+
+      list(min = axis_min, max = axis_max, tickStep = tick_step)
+    },
+    error = function(e) {
+      NULL
+    }
+  )
 }

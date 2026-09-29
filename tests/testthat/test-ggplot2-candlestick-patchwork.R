@@ -11,8 +11,10 @@
 #      a single subplot with up to three layers (candlestick + bar + line),
 #      and volume y-values are embedded into each candlestick data point.
 
+skip_slow_file_on_cran()
+
 # ==============================================================================
-# Helpers (local — tidyquant and patchwork are Suggests)
+# Helpers (local - tidyquant and patchwork are Suggests)
 # ==============================================================================
 
 create_test_ohlcv_df <- function() {

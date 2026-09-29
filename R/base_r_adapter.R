@@ -1,25 +1,21 @@
-#' Base R System Adapter
+#' chartSeries TA Advisory Warning State
 #'
-#' Adapter for the Base R plotting system. This adapter uses function patching
-#' to intercept Base R plotting calls and detect plot types.
+#' Environment used to suppress repeat chartSeries `TA` advisory warnings
+#' within a single session.
 #'
-#' @format An R6 class inheriting from SystemAdapter
 #' @keywords internal
-
-# Environment used to suppress repeat warnings within a single session.
 .maidr_chartseries_ta_warned <- new.env(parent = emptyenv())
 .maidr_chartseries_ta_warned$value <- FALSE
 
 #' Emit a one-time warning when quantmod::chartSeries() is called with a
-#' non-NULL `TA` argument (e.g. `TA = "addVo()"`).
+#' technical-analysis indicator other than the volume panel (e.g.
+#' `TA = "addSMA()"`).
 #'
-#' The gridSVG export pipeline used to convert chartSeries' multi-panel
-#' base graphics output into an accessible HTML SVG mis-handles the volume
-#' sub-panel, producing rects with negative y coordinates that overlap the
-#' date-label band. Because gridSVG is unmaintained, maidr falls back to
-#' native (non-accessible) rendering for these calls and surfaces a
-#' one-time advisory pointing users to the ggplot2 + tidyquant + patchwork
-#' alternative which renders correctly via maidr's ggplot2 path.
+#' maidr reads the candlesticks and the volume panel `addVo()` draws, but
+#' no other indicator, so it falls back to native (non-accessible)
+#' rendering for these calls and surfaces a one-time advisory pointing
+#' users to the ggplot2 + tidyquant + patchwork alternative, which maidr's
+#' ggplot2 path reads in full.
 #'
 #' @return Invisibly NULL.
 #' @keywords internal
@@ -31,16 +27,16 @@ warn_chartseries_ta_unsupported <- function() {
   rlang::warn(
     c(
       paste0(
-        "quantmod::chartSeries() with a `TA` argument (e.g. ",
-        "`TA = \"addVo()\"`) is not supported by maidr's accessible ",
-        "HTML pipeline; the volume sub-panel does not export reliably ",
-        "from the underlying gridSVG bridge."
+        "quantmod::chartSeries() with a `TA` indicator other than ",
+        "`addVo()` (e.g. `TA = \"addSMA()\"`) is not supported by maidr's ",
+        "accessible HTML pipeline; maidr reads the candlesticks and the ",
+        "volume panel only."
       ),
       i = paste0(
         "Falling back to native (non-accessible) graphics for this plot."
       ),
       i = paste0(
-        "For accessible price + volume charts use ggplot2 + ",
+        "For accessible charts with indicators use ggplot2 + ",
         "tidyquant::geom_candlestick() + patchwork instead."
       )
     ),
@@ -51,16 +47,425 @@ warn_chartseries_ta_unsupported <- function() {
   invisible(NULL)
 }
 
+#' fourfoldplot() Decline Advisory State
+#'
+#' Environment holding the decline reasons already explained in this session,
+#' so the advisory below is not repeated for every call.
+#'
+#' A character vector rather than the single flag
+#' `.maidr_chartseries_ta_warned` carries, because `fourfoldplot()` declines
+#' for three different reasons and a session that draws a default-`std` chart
+#' and then a 2x2xk one should hear both explanations rather than only the
+#' first.
+#'
+#' @keywords internal
+.maidr_fourfoldplot_declined <- new.env(parent = emptyenv())
+.maidr_fourfoldplot_declined$reasons <- character(0)
+
+#' Say why a fourfoldplot() call is falling back to a picture
+#'
+#' The generic "Plot contains unsupported elements" the fallback already
+#' emits is true and uninformative: it does not tell an author that the same
+#' chart with `std = "ind.max"` would have been read. This says which of the
+#' three measured refusals applied.
+#'
+#' The three reasons, all measured on R 4.3.3:
+#'
+#' * `"std"` -- the caller's `std` resolved to `"margins"`, which is
+#'   `graphics::fourfoldplot`'s own default. Under it the four radii are
+#'   `sqrt(c(u, 1 - u, 1 - u, u))` with `u = sqrt(or) / (1 + sqrt(or))`:
+#'   one number, the odds ratio, drawn four times. Measured, a table and the
+#'   same table times three give bit-identical radii, so counts announced
+#'   there would name numbers the chart did not draw.
+#' * `"strata"` -- a 2x2xk array. `fourfoldplot()` draws k panels into one
+#'   figure region with repeated `plot.window()` calls rather than
+#'   `par(mfrow)`, so measured on `UCBAdmissions` all 78 polygon grobs are
+#'   named `graphics-plot-1-*` and no helper here slices them per panel.
+#'   The MESSAGE names the third dimension rather than the k panels, because
+#'   "k panels share one region" is false for the one array shape that has
+#'   no strata to confuse: measured, `array(c(10, 40, 90, 160), c(2, 2, 1))`
+#'   under `ind.max` draws a single panel of exactly 13 polygon grobs -- the
+#'   count `wedge_names()` accepts -- and is declined anyway, because
+#'   `recorded_two_way_table()` refuses three dimensions. Telling that author
+#'   about panels they do not have would send them looking for the wrong
+#'   thing; the matrix spelling is the fix and the message says so.
+#' * `"table"` -- a two-way argument that is not a 2x2 table of finite
+#'   non-negative numbers summing above zero. Measured, the all-zero table
+#'   draws ZERO polygon grobs, and a logical matrix prints `TRUE`/`FALSE`
+#'   on the page while `as.numeric()` would announce `1`/`0`.
+#'
+#' Once per reason per session, not once per plot: `detect_layer_type()` is
+#' called up to five times for one accepted layer
+#' (`base_r_plot_orchestrator.R` lines 145, 163, 195, 499, 653) and once per
+#' declined one, so an unguarded warning would repeat. The cost is that an
+#' author who draws two default-`std` charts hears the explanation once --
+#' the same trade `warn_chartseries_ta_unsupported()` makes above.
+#'
+#' The message deliberately avoids the substring "unsupported elements":
+#' `tests/testthat/test-base-r-unrecorded-calls.R` greps for exactly that to
+#' decide whether the *fallback* warning arrived, and a second warning
+#' carrying it would make that assertion pass for the wrong reason.
+#'
+#' @param reason One of `"std"`, `"strata"` or `"table"`.
+#' @return Invisibly NULL.
+#' @keywords internal
+warn_fourfoldplot_declined <- function(reason) {
+  if (reason %in% .maidr_fourfoldplot_declined$reasons) {
+    return(invisible(NULL))
+  }
+  .maidr_fourfoldplot_declined$reasons <- c(
+    .maidr_fourfoldplot_declined$reasons, reason
+  )
+
+  detail <- switch(reason,
+    "std" = paste0(
+      "Under `std = \"margins\"` the four quadrants carry one number -- the ",
+      "odds ratio -- and not the four counts, so there is nothing for a ",
+      "reader to navigate cell by cell."
+    ),
+    "strata" = paste0(
+      "An array with a third dimension is not read: for k > 1 the k panels ",
+      "share one plot region and maidr cannot tell one panel's quadrants ",
+      "from another's, and a 2x2x1 array draws a single panel but is ",
+      "declined with them. Drop the third dimension -- pass the 2x2 matrix ",
+      "or table itself -- to have that one read."
+    ),
+    "table" = paste0(
+      "Only a 2x2 table of finite, non-negative numbers summing above zero ",
+      "is read."
+    )
+  )
+  remedy <- if (identical(reason, "std")) {
+    paste0(
+      "Pass `std = \"ind.max\"` or `std = \"all.max\"` to draw quadrants ",
+      "whose area is proportional to the count; maidr reads those."
+    )
+  } else {
+    "Falling back to a static image for this plot."
+  }
+
+  rlang::warn(
+    c(
+      paste0(
+        "fourfoldplot() is not read as an interactive chart here. ", detail
+      ),
+      i = remedy
+    ),
+    class = "maidr_fourfoldplot_declined",
+    .frequency = "once",
+    .frequency_id = paste0("maidr_fourfoldplot_declined_", reason)
+  )
+  invisible(NULL)
+}
+
+#' Does a Base R `type` argument request a stairstep?
+#'
+#' `graphics::plot()` and `graphics::lines()` draw stairsteps for
+#' `type = "s"` (horizontal segment first) and `type = "S"` (vertical segment
+#' first). The comparison is case-sensitive because those two letters mean
+#' different things.
+#'
+#' @param plot_type The `type` argument recorded from the plot call (may be
+#'   NULL when the caller did not pass one).
+#' @return `TRUE` when `plot_type` is `"s"` or `"S"`, otherwise `FALSE`.
+#' @keywords internal
+is_step_plot_type <- function(plot_type) {
+  if (is.null(plot_type) || length(plot_type) == 0) {
+    return(FALSE)
+  }
+  as.character(plot_type)[1] %in% c("s", "S")
+}
+
+#' Whether a `mosaicplot()` call was handed a two-way table
+#'
+#' A `mosaic` layer has one category axis and one fill, so it can carry a
+#' two-dimensional table and no more. `mosaicplot()` accepts deeper ones and
+#' splits them recursively.
+#'
+#' The table itself is resolved by `recorded_two_way_table()`, which the
+#' processor also reads, so dispatch and extraction cannot disagree about
+#' which calls are readable.
+#'
+#' @param args The arguments recorded from the `mosaicplot()` call.
+#' @return `TRUE` when the call's table has exactly two dimensions.
+#' @keywords internal
+is_two_way_table <- function(args) {
+  !is.null(recorded_two_way_table(args))
+}
+
+#' The `std` choices `graphics::fourfoldplot()` offers
+#'
+#' Written out rather than read from `formals(graphics::fourfoldplot)$std`,
+#' which is an unevaluated `call` of length 4 (measured: `class()` is
+#' `"call"`, and `formals(...)$std[[1]]` is the symbol `c`) and would have to
+#' be `eval()`ed on every dispatch. That the literal still matches upstream is
+#' asserted against the real `formals()` in
+#' `tests/testthat/test-base-r-fourfoldplot.R`, the answer the `qqplot`
+#' branch gives to the same exposure.
+#'
+#' @keywords internal
+FOURFOLD_STD_CHOICES <- c("margins", "ind.max", "all.max")
+
+#' Resolve a recorded `std` the way `fourfoldplot()` itself resolves it
+#'
+#' `graphics::fourfoldplot` runs `std <- match.arg(std)`, so partial spellings
+#' are legal calls that draw the counts. Measured on R 4.3.3, every one of
+#' these is admitted:
+#'
+#' \preformatted{
+#'   <absent> -> margins   "margins" -> margins   "m"   -> margins
+#'   "ma"     -> margins   "ind.max" -> ind.max   "ind" -> ind.max
+#'   "i"      -> ind.max   "in"      -> ind.max   "all.max" -> all.max
+#'   "all"    -> all.max   "a"       -> all.max
+#'   c("margins", "ind.max", "all.max") -> margins
+#' }
+#'
+#' So `identical(args[["std"]], "ind.max")` would silently decline five legal
+#' spellings. The one existing exact-comparison idiom in this package,
+#' `base_r_subseries_layer_processor.R`'s `spikes()`, is complete only because
+#' `monthplot`'s `type` choices are the single characters `"l"` and `"h"`,
+#' where partial matching cannot produce a non-choice string. `std`'s choices
+#' are multi-character, so the same idiom is incomplete here.
+#'
+#' Anything `match.arg()` rejects resolves to `"margins"`, which declines:
+#' measured, `"IND.MAX"`, `"x"`, `NA_character_`, `character(0)` and
+#' `c("ind.max", "margins")` all error inside `match.arg()`, and
+#' `fourfoldplot()` itself raises the identical error first, so none of them
+#' is reachable from a drawn chart. The `tryCatch` is there so that a reader
+#' never `stop()`s and takes the whole figure with it -- the reason
+#' `recorded_flag()` gives for the same shape.
+#'
+#' A non-character `std` is refused before `match.arg()` rather than coerced.
+#' Measured, `fourfoldplot(tb, std = 1L)`, `std = TRUE` and
+#' `std = factor("ind.max")` all stop with "'arg' must be NULL or a character
+#' vector"; `as.character(factor("ind.max"))` would have been accepted here
+#' and would have read a call that upstream refuses to draw.
+#'
+#' `args[["std"]]`, not `args$std`: `$` partial-matches a list, the collision
+#' recorded in `recorded_main_title()`.
+#'
+#' @param args The arguments recorded from the `fourfoldplot()` call.
+#' @return One of `"margins"`, `"ind.max"` or `"all.max"`.
+#' @keywords internal
+fourfold_std <- function(args) {
+  std <- args[["std"]]
+  if (!is.null(std) && !is.character(std)) {
+    return("margins")
+  }
+  tryCatch(
+    match.arg(std, FOURFOLD_STD_CHOICES),
+    error = function(e) "margins"
+  )
+}
+
+#' Which measured refusal a `fourfoldplot()` call runs into, if any
+#'
+#' Returns NULL when the call is read, and otherwise the reason
+#' `warn_fourfoldplot_declined()` explains. Kept beside `is_two_way_table()`
+#' and called from the processor as well as from dispatch, so the two cannot
+#' disagree about which calls are readable.
+#'
+#' The three gates, in the order they are asked:
+#'
+#' 1. **`std`.** Only `"ind.max"` and `"all.max"` are read. Measured on
+#'    `c(tab) = 10, 40, 90, 160`, `std = "ind.max"` draws radii
+#'    `0.25, 0.50, 0.75, 1.00` and `r^2 * max(count)` recovers
+#'    `10, 40, 90, 160` exactly, so the wedge AREA is the count. Under the
+#'    default `"margins"` the same table draws
+#'    `0.632456, 0.774597, 0.774597, 0.632456` -- `r1 == r4`, `r2 == r3`,
+#'    four radii carrying one number.
+#' 2. **Shape.** Exactly two dimensions, both of extent 2. Written as
+#'    `length(dims) == 2L && all(dims == 2L)` and NOT as
+#'    `identical(dims, c(2L, 2L))`, because `dim()` may carry the dimension
+#'    names and `identical()` compares them -- so the exact-comparison
+#'    spelling can decline a table for a reason that has nothing to do with
+#'    what the chart draws. Measured, `dim(as.table(ftable(tb)))` is
+#'    `c(Treatment = 2L, Outcome = 2L)` on R 4.3.3 and unnamed on R 4.6.1, so
+#'    which tables that spelling would have dropped varies by R version. The
+#'    spelling used here does not vary, which is the point of it: whether the
+#'    names survive is not a fact about the chart.
+#' 3. **Values.** `is.numeric()` rather than `as.numeric()`: measured, a
+#'    logical 2x2 prints `TRUE`/`FALSE` on the page as its count labels while
+#'    `as.numeric()` would have announced `1`/`0` under `z = "Count"`.
+#'    Finite, non-negative and summing above zero, because the all-zero table
+#'    makes `stdize()` return `NaN` four times and grid emits ZERO polygon
+#'    grobs for it -- measured, `npoly = 0`.
+#'
+#'    `all(counts >= 0)` is load-bearing, not defensive, and the obvious
+#'    reading of it is wrong. An `NA` count does stop `fourfoldplot()` under
+#'    every `std`, with "missing value where TRUE/FALSE needed", so it never
+#'    arrives. A NEGATIVE count stops only under the DEFAULT
+#'    `std = "margins"`, with that same message. Measured on
+#'    `c(-1, 2, 3, 4)`, `std = "ind.max"` and `std = "all.max"` both return
+#'    normally with a "NaNs produced" warning and `npoly = 0` -- and those
+#'    are exactly the two values that get past gate 1. So a negative count
+#'    reaches this gate whenever it is drawable at all, its counts are finite
+#'    and sum to 8, and this clause is the one that declines it.
+#'    `test-base-r-fourfoldplot.R` pins both halves.
+#'
+#' A 2x2xk array fails gate 2 twice over, and is asked about first only so
+#' the advisory can say "strata" rather than "not a 2x2 table":
+#' `recorded_two_way_table()` returns NULL for any input with three
+#' dimensions anyway. That includes `2x2x1`, which draws exactly what the
+#' matrix spelling draws -- a conservative, measured loss.
+#'
+#' @param args The arguments recorded from the `fourfoldplot()` call.
+#' @return NULL when the counts are readable, otherwise `"std"`, `"strata"`
+#'   or `"table"`.
+#' @keywords internal
+fourfold_decline_reason <- function(args) {
+  if (!(fourfold_std(args) %in% c("ind.max", "all.max"))) {
+    return("std")
+  }
+  handed <- resolve_xy_args(args)$x
+  if (!is.null(handed) && length(dim(handed)) == 3L) {
+    return("strata")
+  }
+  table <- recorded_two_way_table(args)
+  if (is.null(table)) {
+    return("table")
+  }
+  dims <- dim(table)
+  if (length(dims) != 2L || !all(dims == 2L) || !is.numeric(table)) {
+    return("table")
+  }
+  counts <- as.numeric(table)
+  readable <- all(is.finite(counts)) && all(counts >= 0) && sum(counts) > 0
+  if (!readable) "table" else NULL
+}
+
+#' Whether a `fourfoldplot()` call draws the table rather than its odds ratio
+#'
+#' The dispatch-side wrapper over `fourfold_decline_reason()`, in the shape
+#' `is_two_way_table()` has over `recorded_two_way_table()`.
+#'
+#' @param args The arguments recorded from the `fourfoldplot()` call.
+#' @return `TRUE` when the four quadrants are the four counts.
+#' @keywords internal
+fourfold_reads_counts <- function(args) {
+  is.null(fourfold_decline_reason(args))
+}
+
+#' Whether a `dotchart()` call draws more than one group
+#'
+#' `dotchart()` draws a group per matrix column, or per level of `groups`,
+#' with a header in the left margin and every dot in one shared grob. The
+#' grouping is what the chart is drawn to show and there is nothing in a
+#' flat `dot` layer to carry it, so such a call is declined rather than
+#' flattened.
+#'
+#' @param args The arguments recorded from the `dotchart()` call.
+#' @return `TRUE` when the call draws groups, otherwise `FALSE`.
+#' @keywords internal
+is_grouped_dotchart <- function(args) {
+  if (!is.null(args$groups)) {
+    return(TRUE)
+  }
+  # `resolve_xy_args()` rather than `args$x`, which partial-matches `xlab`
+  # and friends -- see #245.
+  x <- resolve_xy_args(args)$x
+  is.matrix(x) || is.data.frame(x)
+}
+
+#' Whether a Base R `type` argument draws spikes
+#'
+#' `type = "h"` draws a vertical line from the baseline to each value --
+#' "histogram-like" in `plot()`'s own wording -- and joins nothing to
+#' anything. Read as a `lollipop` layer, which the core builds on `BarTrace`:
+#' one value per position, with no claim about the space between two of them.
+#'
+#' Case-sensitive, like the step test beside it: `plot()` has no `"H"`.
+#'
+#' @param plot_type The `type` argument recorded from the plot call (may be
+#'   NULL when the caller did not pass one).
+#' @return `TRUE` when `plot_type` is `"h"`, otherwise `FALSE`.
+#' @keywords internal
+is_spike_plot_type <- function(plot_type) {
+  if (is.null(plot_type) || length(plot_type) == 0) {
+    return(FALSE)
+  }
+  identical(as.character(plot_type)[1], "h")
+}
+
+#' Map a Base R `type` argument onto a MAIDR step direction
+#'
+#' `type = "s"` draws the horizontal segment first, which is MAIDR's `"hv"`;
+#' `type = "S"` draws the vertical segment first, which is `"vh"`. Any other
+#' value returns NULL so the caller can omit `stepDirection` rather than
+#' assert a convention the call never asked for.
+#'
+#' @param plot_type The `type` argument recorded from the plot call.
+#' @return `"hv"`, `"vh"`, or NULL.
+#' @keywords internal
+base_r_step_direction <- function(plot_type) {
+  if (!is_step_plot_type(plot_type)) {
+    return(NULL)
+  }
+  if (identical(as.character(plot_type)[1], "s")) "hv" else "vh"
+}
+
+#' Base R System Adapter
+#'
+#' @description
+#' Adapter for the Base R plotting system. This adapter uses function patching
+#' to intercept Base R plotting calls and detect plot types.
+#'
+#' @format An R6 class inheriting from SystemAdapter
+#' @keywords internal
 BaseRAdapter <- R6::R6Class(
   "BaseRAdapter",
   inherit = SystemAdapter,
   public = list(
-    #' Initialize the Base R adapter
+    #' @description Initialize the Base R adapter
     initialize = function() {
       super$initialize("base_r")
     },
 
-    #' Check if this adapter can handle a plot object
+    #' @description Was a formula call recorded without the frame it drew from?
+    #'
+    #' A formula reader takes its rows from the model frame kept at record
+    #' time. When that frame could not be built -- a `subset` written as an
+    #' expression with nothing to evaluate it in, a `data` that no longer
+    #' resolves -- the reader has nothing to announce, and a claimed layer
+    #' with nothing in it exports as an interactive chart that says nothing.
+    #' Declining the type sends the chart to the picture instead.
+    #'
+    #' @param layer The recorded call entry
+    #' @return TRUE when the call carries a formula but no frame
+    formula_frame_missing = function(layer) {
+      self$formula_call(layer) && is.null(layer$formula_frame)
+    },
+
+    #' @description Was the call handed a formula?
+    #'
+    #' Either written in the call, or -- `fmla <- y ~ x; plot(fmla)` --
+    #' bound to a name the recorder resolved.
+    #'
+    #' @param layer The recorded call entry
+    #' @return TRUE when the call carries a formula
+    formula_call = function(layer) {
+      inherits(layer$formula, "formula") ||
+        is_formula_argument(resolve_xy_args(layer$args)$x)
+    },
+
+    #' @description Does a recorded formula `plot()` draw a numeric scatter?
+    #'
+    #' `plot.formula()` draws a scatter only for a numeric response over one
+    #' numeric predictor; a factor predictor reaches `plot.factor()` and a
+    #' box plot, and a longer right-hand side is `plot.default()` over the
+    #' first term. Only the two-column numeric frame is read as points.
+    #'
+    #' @param layer The recorded call entry
+    #' @return TRUE when the frame is a numeric pair
+    formula_scatter_readable = function(layer) {
+      frame <- layer$formula_frame
+      if (!is.data.frame(frame) || ncol(frame) != 2L) {
+        return(FALSE)
+      }
+      all(vapply(frame, is.numeric, logical(1)))
+    },
+
+    #' @description Check if this adapter can handle a plot object
     #' @param plot_object The plot object to check (should be NULL for Base R)
     #' @return TRUE if Base R plotting is active, FALSE otherwise
     can_handle = function(plot_object) {
@@ -72,7 +477,7 @@ BaseRAdapter <- R6::R6Class(
       can_handle_result
     },
 
-    #' Detect the type of a single layer from Base R plot calls
+    #' @description Detect the type of a single layer from Base R plot calls
     #' @param layer The plot call entry from our logger
     #' @param plot_object The parent plot object (NULL for Base R)
     #' @return String indicating the layer type (e.g., "bar", "dodged_bar",
@@ -90,6 +495,8 @@ BaseRAdapter <- R6::R6Class(
         "barplot" = {
           if (self$is_dodged_barplot(args)) {
             "dodged_bar"
+          } else if (self$is_normalized_barplot(args)) {
+            "stacked_normalized_bar"
           } else if (self$is_stacked_barplot(args)) {
             "stacked_bar"
           } else {
@@ -100,58 +507,350 @@ BaseRAdapter <- R6::R6Class(
           first_arg <- args[[1]]
           if (!is.null(first_arg) && inherits(first_arg, "density")) {
             "smooth"
+          } else if (self$formula_call(layer) && !self$formula_scatter_readable(layer)) {
+            # `plot(y ~ f)` on a factor dispatches to `plot.factor()`, which
+            # draws a box plot, and a formula whose frame could not be
+            # resolved has nothing to announce. Typed as points, either
+            # exported as an interactive chart with no points in it.
+            "unknown"
           } else {
             # plot() default type is "p" (points/scatter)
             # plot(x, y) with two numeric vectors defaults to scatter
-            plot_type <- args$type
-            if (is.null(plot_type) || plot_type == "p") {
+            #
+            # `type = "b"` reads as points, not as a line. It draws the
+            # segments with a gap at every symbol, so gridSVG exports them
+            # under "brokenline" rather than the single "lines" polyline the
+            # line selector addresses - the layer came out with NO selector
+            # and highlighted nothing, while the points grob it also draws
+            # resolves cleanly. The `curve` branch below already reached this
+            # conclusion for the same draw types; the `plot` branch could not
+            # act on it while a positionally supplied type never arrived here
+            # at all (#98). `"o"` overplots symbols on an unbroken polyline,
+            # so it keeps the line reading, exactly as `curve` does.
+            #
+            # `"c"` and `"h"` are left as they are: they export under names
+            # the line selector cannot address either, but they draw no
+            # symbols to fall back to, so there is nothing to point at until
+            # a trace type exists for them. Their reading is unchanged from a
+            # named `type =` today.
+            #
+            # `"s"` and `"S"` were in that list until a trace type did exist
+            # for them. They now type as "step", and the step processor
+            # overrides the grob search to the `-step-` / `-Step-` names
+            # gridGraphics gives them, so they are addressable rather than
+            # unpointable. Reaching here positionally is new, so
+            # `plot(x, y, "s")` is described for the first time.
+            #
+            # `type = "n"` is the one that draws nothing at all: it sets up
+            # the axes and plots no points and no lines, which is how a custom
+            # chart is started before `segments`, `polygon` or `rect` add the
+            # marks. The catch-all below claimed it as a line, so an empty
+            # panel was announced as a full series of the values `plot()` was
+            # handed and deliberately did not draw -- ten points to walk and
+            # sonify, where a sighted reader sees nothing (#237).
+            #
+            # Worse than being unread, for the reason #572 gives about
+            # `triplot`: the data is real, the axes are real, and the only
+            # false thing is the claim that any of it was drawn. Declined, so
+            # the figure falls back to a picture of the empty panel it is --
+            # which is what the shapes drawn over it already get, since they
+            # contribute no layer of their own.
+            plot_type <- args[["type"]]
+            # `plot.ts` defaults to `type = "l"`, so `plot(AirPassengers)`
+            # draws a line and no points. Read off `type` alone it was typed
+            # `point`, with a selector on a points grob that was never drawn.
+            if (is.null(plot_type) && stats::is.ts(first_arg)) {
+              plot_type <- "l"
+            }
+            if (is.character(plot_type) && identical(plot_type[1], "n")) {
+              "unknown"
+            } else if (is.null(plot_type) || plot_type[1] %in% c("p", "b")) {
               "point"
+            } else if (is_spike_plot_type(plot_type)) {
+              # type = "h" draws a vertical from the baseline to each value
+              # and joins nothing to anything. The catch-all "line" below
+              # claimed it, which is the reading a spike chart most needs not
+              # to have: a line says the samples are joined and the space
+              # between them can be interpolated (#239).
+              "lollipop"
+            } else if (is_step_plot_type(plot_type)) {
+              # type = "s" / "S" draw stairsteps. This test must precede the
+              # catch-all "line" below, which would otherwise claim them.
+              "step"
             } else {
               "line"
             }
           }
         },
+        # curve() draws the points it evaluates as a polyline, which is
+        # what plot(x, y, type = "l") does, so it types as the same "line"
+        # layer -- and the SVG export names that polyline
+        # "graphics-plot-N-lines-1", the grob the line processor already
+        # looks for.
+        #
+        # Only the polyline draw types qualify. type = "s"/"S"/"b"/"c"/"h"
+        # /"p" export under grob names the line selector cannot address
+        # ("step", "Step", "brokenline", "spike", "points"), so they keep
+        # falling back to a static image rather than shipping data with
+        # selectors that highlight nothing. type = "o" draws the same
+        # polyline plus a points grob, so the line reading holds.
+        #
+        # curve(add = TRUE) is excluded for a different reason: `curve` is
+        # a HIGH-level function, so it opens its own plot group, and a
+        # single-panel figure exports only the FIRST group's grob. An
+        # overlay typed as "line" would therefore emit data for a curve
+        # that is absent from the exported SVG, with a selector pointing
+        # at a grob that group never drew. Overlays stay on the static
+        # fallback until they are grouped with the plot they add to.
+        "curve" = {
+          curve_type <- args[["type"]]
+          overlays_existing <- "add" %in% names(args) &&
+            !identical(args[["add"]], FALSE)
+          draws_polyline <- is.null(curve_type) ||
+            (is.character(curve_type) && curve_type[1] %in% c("l", "o"))
+          if (overlays_existing || !draws_polyline) {
+            "unknown"
+          } else {
+            "line"
+          }
+        },
+        # A Cleveland dot plot: one value per category, marked on a guide
+        # line, categories down the page. Read as `dot`, which the core
+        # builds on its bar trace (#237).
+        #
+        # Only the one-value-per-category form. `dotchart()` also takes a
+        # matrix, or a `groups` factor, and then draws every group's dots
+        # into the *same* points grob with a header per group in the left
+        # margin -- so a flat reading would hand the reader one run of dots
+        # with no way to tell which group each belongs to, and the group
+        # names silently dropped. Declined, which is where it already was.
+        "dotchart" = {
+          if (is_grouped_dotchart(args)) "unknown" else "dot"
+        },
+        # A two-way contingency table drawn as tiles, where the column
+        # widths encode data as well as the tile heights. Read as `mosaic`,
+        # which exists for exactly this shape; read as a stacked bar it
+        # would lose the widths, and the widths are half the table (#242).
+        #
+        # Only a two-dimensional table. `mosaicplot()` accepts three and
+        # more, splitting recursively, and a `mosaic` layer has one category
+        # axis and one fill -- so a deeper table has nowhere to put its
+        # later dimensions and is declined rather than flattened into a
+        # cross-classification the chart does not claim.
+        "mosaicplot" = {
+          if (is_two_way_table(args)) "mosaic" else "unknown"
+        },
+        # A Cohen--Friendly association plot: the same two-way table, drawn
+        # as one tile per cell whose signed height is that cell's Pearson
+        # residual. Read as a `heat` -- a named grid of one number per cell,
+        # navigated row then column, which is how a contingency table is
+        # read. NOT as a `mosaic`, though the two look alike: a mosaic's
+        # tiles are proportions of a whole and these are signed departures
+        # from an expectation, which sum to nothing (#266).
+        "assocplot" = {
+          if (is_two_way_table(args)) "residual" else "unknown"
+        },
+        # A fourfold display: the same two-way table again, drawn as four
+        # quarter-circles. Read as a `heat` for the same reason `assocplot`
+        # is -- the drawing IS a 2x2 grid. Measured native centroids:
+        # polygon-1 (-0.16, +0.16) upper-left = tab[1, 1], polygon-2
+        # (-0.32, -0.32) lower-left = tab[2, 1], polygon-3 (+0.48, +0.48)
+        # upper-right = tab[1, 2], polygon-4 (+0.64, -0.64) lower-right =
+        # tab[2, 2] -- so row-then-column navigation walks the quadrants in
+        # the arrangement the chart drew them.
+        #
+        # Conditional on the caller's own argument, the shape the `qqplot`
+        # branch below has, but read the other way round: `qqplot` reads
+        # silence as accept, and here silence is the DECLINE.
+        # `stats::qqplot`'s default is NULL; `graphics::fourfoldplot`'s is
+        # c("margins", "ind.max", "all.max") -> "margins", and that is the
+        # one value under which the counts are not drawn. As with `qqplot`,
+        # the upstream default is asserted in `test-base-r-fourfoldplot.R`
+        # rather than consulted here, so a release that changed it fails
+        # loudly rather than silently turning every plain `fourfoldplot()`
+        # into a reading of numbers it does not draw (#268).
+        #
+        # This is the ONLY gate that can lose the reading. The geometry
+        # check the issue asks for lives in the processor's
+        # `generate_selectors()` and can only drop selectors, because
+        # `BaseRPlotOrchestrator$initialize()` runs `detect_layers()`,
+        # `resolve_fallback_scope()`, `create_layer_processors()` and
+        # `process_layers()` in that order (lines 122-125): the
+        # picture-versus-chart decision is frozen one line before any
+        # processor is built, and `create_layer_processors()` does not even
+        # instantiate one for a layer already typed "unknown". A processor
+        # that answered `type = "unknown"` would ship that string with
+        # `has_unsupported_layers()` still FALSE -- the #214 failure the
+        # factory records.
+        "fourfoldplot" = {
+          reason <- fourfold_decline_reason(args)
+          if (is.null(reason)) {
+            "fourfold"
+          } else {
+            warn_fourfoldplot_declined(reason)
+            "unknown"
+          }
+        },
+        # A Q-Q plot: the scatter of one sample's quantiles against another
+        # distribution's. Read as `point` -- it is a scatter, and the only
+        # thing separating it from any other is that its coordinates are
+        # *computed* rather than handed in, which is what
+        # `BaseRQqLayerProcessor` exists for (#251).
+        "qqnorm" = "qq",
+        # `qqplot(conf.level = ...)` additionally draws a confidence band,
+        # as a `polygon()` from inside `stats` that the wrapper never sees
+        # and nothing in the payload could carry. Reading the points alone
+        # would hand a reader a chart with a drawn region silently missing
+        # from it, so the whole call is declined and keeps falling back to
+        # a picture, which at least says what it is.
+        #
+        # The caller's own argument is the whole test, which reads "no band"
+        # off the caller's *silence*. That is sound only while
+        # `stats::qqplot`'s own default is NULL, and it is -- so rather than
+        # consult `formals()` here, where a NULL default makes the extra
+        # branch unobservable and untestable, the assumption is asserted
+        # outright in `test-base-r-qq-plot.R`. A release that changed the
+        # default fails that test rather than silently turning every plain
+        # `qqplot()` into a chart with a drawn region missing from it.
+        # Raised in review of #253.
+        "qqplot" = {
+          if (is.null(args[["conf.level"]])) "qq" else "unknown"
+        },
+        # A one-dimensional scatter: every observation as its own mark,
+        # laid along a value axis at its group's position. Read as `point`,
+        # one layer per group, which is what the drawing forces -- gridSVG
+        # exports one `points` grob per group -- and what the same chart
+        # already gets in py-maidr (#251).
+        "stripchart" = {
+          if (self$formula_frame_missing(layer)) "unknown" else "strip"
+        },
+        # An `n x n` grid of scatters: every ordered pair of columns, the
+        # column across against the column down. Read as a *figure* of
+        # subplots rather than as one layer, which is the shape the same
+        # chart already gets in py-maidr (#272).
+        "pairs" = {
+          if (self$formula_frame_missing(layer)) "unknown" else "pairs"
+        },
+        # One closed outline per observation, a spoke per variable -- which is
+        # a multi-line layer with the matrix turned on its side, since MAIDR's
+        # radar is navigated as one series per row (#262).
+        "stars" = "radar",
+        # A term and its count, drawn as glyph size and written down nowhere
+        # on the page. `wordcloud()` takes the counts directly, so unlike the
+        # Python binding the raw frequencies survive in the call and the
+        # reading announces occurrences rather than ratios.
+        "wordcloud" = "word_cloud",
+        # A grid of scatters again, this time of one series against shifted
+        # copies of itself: one panel per series and lag, `X[t + k]` across
+        # against `X[t]` up. Read as a figure of subplots for the same reason
+        # `pairs()` is -- the call lays out its own panels and the device's
+        # layout calls never see them (#262).
+        "lag.plot" = "lag",
+        # One partial-effect curve per term of a fitted model, each against
+        # its own carrier. A grid again, for the third time and for the same
+        # reason -- except that this call sets no layout at all, so the
+        # caller's `par(mfrow)` decides how many terms share the page (#262).
+        "termplot" = "termplot",
+        # An estimated spectral density against frequency -- one curve, drawn
+        # as a line, with a confidence crosshair beside it that is a reference
+        # mark rather than a reading (#262).
+        "spectrum" = "spectral_density",
+        # The cumulative periodogram of the same series, drawn as a staircase
+        # rather than a line because a cumulative sum holds and then jumps.
+        # It computes its own periodogram rather than reusing `spectrum()`'s,
+        # which is why it has a processor of its own (#262).
+        "cpgram" = "cumulative_periodogram",
+        # The observations in principal component space and the variables'
+        # loadings on the same components, drawn on top of each other on two
+        # different pairs of axes. Read as a figure of two subplots, because
+        # the two halves do not share a scale (#262).
+        "biplot" = "biplot",
+        # The same level curves `contour()` draws, with the bands between
+        # them filled. Read as a contour, from `contourLines()` rather than
+        # from the fill, so one chart's two spellings read alike (#251).
+        "filled.contour" = "filled_contour",
+        # A mosaic of two categorical variables: one column per level of x,
+        # its width that level's share of all observations, split by y's
+        # conditional proportions. Read as `mosaic`, which is the shape
+        # `mosaicplot()` already gets (#251).
+        "spineplot" = "spine",
+        # The conditional distribution of a factor across a numeric x,
+        # drawn as bands that fill the height and sum to 1 at every x. Read
+        # as `stacked_normalized_area`, the shape `geom_area(position =
+        # "fill")` already gets (#251).
+        "cdplot" = "conditional_density",
+        # The three correlogram entry points. Each draws one vertical spike
+        # per lag, from the zero line to the correlation at that lag, and
+        # joins nothing to anything -- the shape `type = "h"` already reads
+        # as a `lollipop` for, and under the same `spike` grob name (#276).
+        # They are recorded but were read as nothing, so the chart came out
+        # as a picture.
+        "acf" = "correlogram",
+        "pacf" = "correlogram",
+        "ccf" = "correlogram",
         "hist" = "hist",
         "boxplot" = "box",
+        # `boxplot()`'s own drawing half, called directly by a caller who
+        # already has the five-number summaries. It draws the same marks
+        # `boxplot()` does -- the same grob names in the same order -- so it
+        # is the same `box` layer, and the separate name only routes it to
+        # the subclass that reads the summaries out of the call instead of
+        # recomputing them from observations that are not there (#262).
+        "bxp" = "box_stats",
+        # vioplot::vioplot() -- read as the violin_box + violin_kde pair, the
+        # same shape the ggplot2 adapter produces for geom_violin().
+        "vioplot" = {
+          # The formula interface is not read: resolving it needs an
+          # environment the processor no longer has. Declined here, so the
+          # chart falls back to a picture rather than exporting as an
+          # interactive chart with no layers in it.
+          if (self$formula_call(layer)) "unknown" else "violin"
+        },
+        "pie" = "pie",
         "image" = "heat",
         "heatmap" = "heat",
+        # Typed "contour" again, now that `BaseRContourLayerProcessor` exists
+        # to read one (#218). It was "unknown" for a while, and the reason is
+        # worth keeping: with no processor behind it, this line put the gap in
+        # the *payload* rather than in the fallback. The layer came out typed
+        # "unknown" -- which `unsupported_layer_flags` only looks for on
+        # `layer$type`, so the static-image path never ran -- and the core's
+        # trace factory ends with `throw new Error("Invalid trace type: ...")`,
+        # so the figure never bound. An interactive shell answering no key,
+        # and no picture either (#214).
+        #
+        # So this name and the factory's dispatch have to move together. The
+        # registry in `base_r_processor_factory` is derived from that dispatch
+        # (#200), which is what stops them drifting apart again.
         "contour" = "contour",
         "matplot" = "line",
+        # The same set of lines, over cell means the call computes
+        # rather than over a matrix the caller handed in. The separate
+        # name routes it to the subclass that recomputes them (#278).
+        "interaction.plot" = "interaction",
+        # One line per cycle position, over that position's own subseries.
+        # The same set of lines again -- what the separate name routes to is
+        # the subclass that recovers the times the slot offsets were computed
+        # from, which the drawing does not carry (#262).
+        "monthplot" = "subseries",
         # quantmod::chartSeries() candlestick path. The `type` argument
         # defaults to "auto"; we accept the call as candlestick only when
         # the user explicitly requests it (matching the MVP scope).
         # Other types (bars / line / matchsticks) are deferred.
-        # Technical analysis overlays via the `TA` argument (e.g.
-        # `addVo()`) are also unsupported: the gridSVG export pipeline
-        # (chartSeries -> ggplotify::as.grob -> gridGraphics::grid.echo
-        # -> gridSVG::grid.export) mis-handles the multi-panel volume
-        # sub-plot, producing volume <rect>s with negative y coordinates
-        # that spill into the date-label band. gridSVG is unmaintained
-        # (last CRAN release 2017); a proper fix would require either
-        # patching gridSVG or rewriting the export pipeline. We return
-        # "unknown" (which triggers maidr's standard fallback to native
-        # graphics) and emit a one-time warning steering users to the
-        # working ggplot2 + tidyquant + patchwork path for accessible
-        # price+volume charts.
+        # Of the technical-analysis indicators the `TA` argument draws,
+        # only the volume panel, `addVo()`, is read: it becomes a bar
+        # layer beside the candles. It is drawn by default (`TA` defaults
+        # to "addVo()"), so a plain call on data with a Volume column gets
+        # it too. Any other indicator (`addSMA()`, `addMACD()`, ...) has no
+        # processor, so the call returns "unknown" (maidr's standard
+        # fallback to native graphics) with a one-time warning steering
+        # users to the ggplot2 + tidyquant + patchwork path.
         "chartSeries" = {
           ct <- args$type
-          ta <- args$TA
-          ta_in_args <- "TA" %in% names(args)
-          x <- args[[1]]
-          # quantmod::chartSeries() default `TA` auto-adds addVo() when
-          # the input has a Volume column. Treat that implicit case the
-          # same as an explicit TA: warn + fall back to native graphics.
-          has_default_vo <- !ta_in_args &&
-            !is.null(x) &&
-            requireNamespace("quantmod", quietly = TRUE) &&
-            tryCatch(isTRUE(quantmod::has.Vo(x)),
-                     error = function(e) FALSE)
-          ta_explicit_unsupported <- ta_in_args &&
-            !is.null(ta) && !identical(ta, FALSE) &&
-            !identical(ta, "") && !identical(ta, NA)
+          ta <- chartseries_ta_calls(args)
           if (is.null(ct) || !identical(as.character(ct)[1], "candlesticks")) {
             "unknown"
-          } else if (ta_explicit_unsupported || has_default_vo) {
+          } else if (!all(is_chartseries_volume_ta(ta))) {
             warn_chartseries_ta_unsupported()
             "unknown"
           } else {
@@ -169,6 +868,19 @@ BaseRAdapter <- R6::R6Class(
       layer_type <- switch(function_name,
         "lines" = {
           first_arg <- args[[1]]
+          # lines() never inspected `type` before, so lines(x, y, type = "s")
+          # was reported as a plain line. The wrapper captures named dots, so
+          # the stairstep request is available here just as it is for plot().
+          # Same ladder the `plot()` branch above runs, so an overlay drawn
+          # with `type = "s"` or `type = "h"` reads as the shape it draws
+          # rather than as a plain line.
+          step_fallback <- if (is_step_plot_type(args$type)) {
+            "step"
+          } else if (is_spike_plot_type(args$type)) {
+            "lollipop"
+          } else {
+            "line"
+          }
           if (!is.null(first_arg)) {
             if (inherits(first_arg, "density")) {
               "smooth" # Existing: density curves
@@ -184,14 +896,19 @@ BaseRAdapter <- R6::R6Class(
               # List with x,y and no other args - likely loess.smooth result
               "smooth"
             } else {
-              "line" # Default: regular line
+              step_fallback # Default: regular line, unless type = "s" / "S"
             }
           } else {
-            "line"
+            step_fallback
           }
         },
         "points" = "point",
         "abline" = "line",
+        # `qqline()` draws an `abline` from inside the `stats`
+        # namespace, where the wrapper never sees it -- so it is
+        # recorded under its own name and read as the reference line
+        # it is, from its own arguments rather than the plot's (#252).
+        "qqline" = "qqline",
         "polygon" = "unknown", # Decorative element, triggers fallback if present
         "unknown"
       )
@@ -199,37 +916,82 @@ BaseRAdapter <- R6::R6Class(
       layer_type
     },
 
-    #' Check if a barplot call represents a dodged bar plot
+    #' @description Check if a barplot call represents a dodged bar plot
     #' @param args The arguments from the barplot call
     #' @return TRUE if this is a dodged bar plot, FALSE otherwise
     is_dodged_barplot = function(args) {
-      height <- args[[1]]
-      beside <- args$beside
-
+      height <- recorded_barplot_height(args)
       is_matrix <- is.matrix(height) || (is.array(height) && length(dim(height)) == 2)
 
-      # For matrices, beside = TRUE creates dodged bars
-      beside_true <- if (is.null(beside)) FALSE else beside
+      # For matrices, beside = TRUE creates dodged bars. Read the way
+      # `barplot()` reads it -- `if (beside)` -- rather than passed through,
+      # which returned the caller's own value and made this expression a
+      # number rather than a logical (#256).
+      beside_true <- recorded_flag(args, "beside")
 
       is_matrix && beside_true
     },
 
-    #' Check if a barplot call represents a stacked bar plot
+    #' @description Check if a barplot call represents a stacked bar plot
     #' @param args The arguments from the barplot call
     #' @return TRUE if this is a stacked bar plot, FALSE otherwise
     is_stacked_barplot = function(args) {
-      height <- args[[1]]
-      beside <- args$beside
-
+      height <- recorded_barplot_height(args)
       is_matrix <- is.matrix(height) || (is.array(height) && length(dim(height)) == 2)
 
-      # For matrices, beside = FALSE creates stacked bars
-      beside_false <- if (is.null(beside)) FALSE else !beside
+      # For matrices, beside = FALSE creates stacked bars - and FALSE is
+      # barplot()'s DEFAULT, so a matrix without an explicit `beside`
+      # argument is also stacked
+      beside_false <- !recorded_flag(args, "beside")
 
       is_matrix && beside_false
     },
 
-    #' Create an orchestrator for this system (Base R)
+    #' @description Check if a barplot call draws a 100% stacked bar
+    #'
+    #' Base R has no `position = "fill"` to read: `barplot()` takes no
+    #' normalisation argument at all, and the idiomatic way to draw a 100%
+    #' stacked bar is to normalise the matrix first, as
+    #' `barplot(prop.table(m, 2))`. The only signal left is the drawn geometry.
+    #'
+    #' So this reads what the chart shows rather than guessing what the author
+    #' meant, and the two are the same thing here: when every column sums to 1,
+    #' every bar is drawn to a common full height and each segment is that
+    #' category's share. A chart like that IS a 100% stacked bar whatever the
+    #' numbers were before they reached `barplot()`.
+    #'
+    #' Deliberately narrow. It does not also accept columns summing to 100,
+    #' because a matrix of raw counts can total 100 by coincidence and nothing
+    #' about the drawing would distinguish that from percentages. And it needs
+    #' two or more rows, because a single series stacked against nothing is not
+    #' a stack.
+    #'
+    #' @param args The arguments from the barplot call
+    #' @return TRUE if every column of the height matrix sums to 1
+    is_normalized_barplot = function(args) {
+      if (!self$is_stacked_barplot(args)) {
+        return(FALSE)
+      }
+
+      height <- recorded_barplot_height(args)
+      if (nrow(height) < 2) {
+        return(FALSE)
+      }
+
+      sums <- colSums(height, na.rm = TRUE)
+      if (length(sums) == 0 || !all(is.finite(sums))) {
+        return(FALSE)
+      }
+
+      # `prop.table()` divides, so the columns land near 1 rather than on it.
+      isTRUE(all.equal(
+        unname(sums),
+        rep(1, length(sums)),
+        tolerance = 1e-8
+      ))
+    },
+
+    #' @description Create an orchestrator for this system (Base R)
     #' @param plot_object The plot object to process (NULL for Base R)
     #' @return PlotOrchestrator instance
     create_orchestrator = function(plot_object = NULL) {
@@ -241,53 +1003,53 @@ BaseRAdapter <- R6::R6Class(
       BaseRPlotOrchestrator$new(device_id = device_id)
     },
 
-    #' Get the system name
+    #' @description Get the system name
     #' @return System name string
     get_system_name = function() {
       self$system_name
     },
 
-    #' Get a reference to this adapter (for use by orchestrator)
+    #' @description Get a reference to this adapter (for use by orchestrator)
     #' @return Self reference
     get_adapter = function() {
       self
     },
 
-    #' Check if plot has facets (Base R doesn't support facets)
+    #' @description Check if plot has facets (Base R doesn't support facets)
     #' @param plot_object The plot object (ignored for Base R)
     #' @return FALSE (Base R doesn't support facets)
     has_facets = function(plot_object = NULL) {
       FALSE
     },
 
-    #' Check if plot is a patchwork plot (Base R doesn't support patchwork)
+    #' @description Check if plot is a patchwork plot (Base R doesn't support patchwork)
     #' @param plot_object The plot object (ignored for Base R)
     #' @return FALSE (Base R doesn't support patchwork)
     is_patchwork = function(plot_object = NULL) {
       FALSE
     },
 
-    #' Get recorded plot calls for processing
+    #' @description Get recorded plot calls for processing
     #' @param device_id Graphics device ID (defaults to current device)
     #' @return List of recorded plot calls
     get_plot_calls = function(device_id = grDevices::dev.cur()) {
       get_device_calls(device_id)
     },
 
-    #' Clear recorded plot calls (for cleanup)
+    #' @description Clear recorded plot calls (for cleanup)
     #' @param device_id Graphics device ID (defaults to current device)
     clear_plot_calls = function(device_id = grDevices::dev.cur()) {
       clear_device_storage(device_id)
     },
 
-    #' Initialize function patching
+    #' @description Initialize function patching
     #' @return NULL (invisible)
     initialize_patching = function() {
       initialize_base_r_patching()
       invisible(NULL)
     },
 
-    #' Restore original functions
+    #' @description Restore original functions
     #' @return NULL (invisible)
     restore_functions = function() {
       restore_original_functions()

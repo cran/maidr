@@ -4,409 +4,663 @@
 \alias{Ggplot2ViolinLayerProcessor}
 \title{Violin Layer Processor}
 \description{
-Violin Layer Processor
-
-Violin Layer Processor
-}
-\details{
 Processes violin layers (geom_violin) to extract density curve (KDE) data
-and box-summary statistics, producing two maidr layers: `violin_kde` and
-`violin_box`.
+and box-summary statistics, producing two maidr layers: \code{violin_kde} and
+\code{violin_box}.
 
-The processor injects a thin `geom_boxplot(width = 0.1)` into the plot
+The processor injects a thin \code{geom_boxplot(width = 0.1)} into the plot
 before rendering so that the SVG contains visible box elements whose
 CSS selectors can drive the violin_box highlight in the maidr frontend.
 }
 \keyword{internal}
 \section{Super class}{
-\code{\link[maidr:LayerProcessor]{maidr::LayerProcessor}} -> \code{Ggplot2ViolinLayerProcessor}
+\code{\link[maidr:LayerProcessor]{LayerProcessor}} -> \code{Ggplot2ViolinLayerProcessor}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-Ggplot2ViolinLayerProcessor-needs_augmentation}{\code{Ggplot2ViolinLayerProcessor$needs_augmentation()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-augment_plot}{\code{Ggplot2ViolinLayerProcessor$augment_plot()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-process}{\code{Ggplot2ViolinLayerProcessor$process()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-extract_box_data}{\code{Ggplot2ViolinLayerProcessor$extract_box_data()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-extract_kde_data}{\code{Ggplot2ViolinLayerProcessor$extract_kde_data()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-simplify_violin_kde}{\code{Ggplot2ViolinLayerProcessor$simplify_violin_kde()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-extract_data}{\code{Ggplot2ViolinLayerProcessor$extract_data()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-generate_selectors}{\code{Ggplot2ViolinLayerProcessor$generate_selectors()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-generate_box_selectors}{\code{Ggplot2ViolinLayerProcessor$generate_box_selectors()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-determine_orientation}{\code{Ggplot2ViolinLayerProcessor$determine_orientation()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-get_effective_mapping}{\code{Ggplot2ViolinLayerProcessor$get_effective_mapping()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-get_original_data}{\code{Ggplot2ViolinLayerProcessor$get_original_data()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-get_category_labels}{\code{Ggplot2ViolinLayerProcessor$get_category_labels()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_boxplot_layer_index}{\code{Ggplot2ViolinLayerProcessor$find_boxplot_layer_index()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_panel_grob}{\code{Ggplot2ViolinLayerProcessor$find_panel_grob()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_grob_ids}{\code{Ggplot2ViolinLayerProcessor$find_grob_ids()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_direct_children}{\code{Ggplot2ViolinLayerProcessor$find_direct_children()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_grob_by_id}{\code{Ggplot2ViolinLayerProcessor$find_grob_by_id()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_desc_by_pattern}{\code{Ggplot2ViolinLayerProcessor$find_desc_by_pattern()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-find_all_desc_by_pattern}{\code{Ggplot2ViolinLayerProcessor$find_all_desc_by_pattern()}}
-\item \href{#method-Ggplot2ViolinLayerProcessor-clone}{\code{Ggplot2ViolinLayerProcessor$clone()}}
+  \itemize{
+    \item \href{#method-Ggplot2ViolinLayerProcessor-needs_augmentation}{\code{Ggplot2ViolinLayerProcessor$needs_augmentation()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-augment_plot}{\code{Ggplot2ViolinLayerProcessor$augment_plot()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-process}{\code{Ggplot2ViolinLayerProcessor$process()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-extract_box_data}{\code{Ggplot2ViolinLayerProcessor$extract_box_data()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-extract_kde_data}{\code{Ggplot2ViolinLayerProcessor$extract_kde_data()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-simplify_violin_kde}{\code{Ggplot2ViolinLayerProcessor$simplify_violin_kde()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-extract_data}{\code{Ggplot2ViolinLayerProcessor$extract_data()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-generate_selectors}{\code{Ggplot2ViolinLayerProcessor$generate_selectors()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-generate_box_selectors}{\code{Ggplot2ViolinLayerProcessor$generate_box_selectors()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-determine_orientation}{\code{Ggplot2ViolinLayerProcessor$determine_orientation()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-get_effective_mapping}{\code{Ggplot2ViolinLayerProcessor$get_effective_mapping()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-discrete_axis_labels}{\code{Ggplot2ViolinLayerProcessor$discrete_axis_labels()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-fill_levels_by_colour}{\code{Ggplot2ViolinLayerProcessor$fill_levels_by_colour()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-group_labels}{\code{Ggplot2ViolinLayerProcessor$group_labels()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-boxplot_stats}{\code{Ggplot2ViolinLayerProcessor$boxplot_stats()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_boxplot_layer_index}{\code{Ggplot2ViolinLayerProcessor$find_boxplot_layer_index()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_panel_grob}{\code{Ggplot2ViolinLayerProcessor$find_panel_grob()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_grob_ids}{\code{Ggplot2ViolinLayerProcessor$find_grob_ids()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_direct_children}{\code{Ggplot2ViolinLayerProcessor$find_direct_children()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_grob_by_id}{\code{Ggplot2ViolinLayerProcessor$find_grob_by_id()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_desc_by_pattern}{\code{Ggplot2ViolinLayerProcessor$find_desc_by_pattern()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-find_all_desc_by_pattern}{\code{Ggplot2ViolinLayerProcessor$find_all_desc_by_pattern()}}
+    \item \href{#method-Ggplot2ViolinLayerProcessor-clone}{\code{Ggplot2ViolinLayerProcessor$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="apply_scale_mapping"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-apply_scale_mapping'><code>maidr::LayerProcessor$apply_scale_mapping()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>maidr::LayerProcessor$extract_layer_axes()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>maidr::LayerProcessor$get_last_result()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>maidr::LayerProcessor$get_layer_index()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>maidr::LayerProcessor$initialize()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_reordering"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_reordering'><code>maidr::LayerProcessor$needs_reordering()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>maidr::LayerProcessor$reorder_layer_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>maidr::LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="extract_layer_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-extract_layer_axes'><code>LayerProcessor$extract_layer_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_grob_tree"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_grob_tree'><code>LayerProcessor$find_layer_grob_tree()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_polyline_grob"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_polyline_grob'><code>LayerProcessor$find_layer_polyline_grob()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>LayerProcessor$get_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_built_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_built_data'><code>LayerProcessor$get_layer_built_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>LayerProcessor$get_layer_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_own_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_own_layer'><code>LayerProcessor$get_own_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>LayerProcessor$initialize()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_flipped_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_flipped_layer'><code>LayerProcessor$is_flipped_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_horizontal_call"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_horizontal_call'><code>LayerProcessor$is_horizontal_call()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="layer_polyline_grobs"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-layer_polyline_grobs'><code>LayerProcessor$layer_polyline_grobs()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_reordering"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_reordering'><code>LayerProcessor$needs_reordering()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="other_geom_grob_prefixes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-other_geom_grob_prefixes'><code>LayerProcessor$other_geom_grob_prefixes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>LayerProcessor$reorder_layer_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="resolve_panel_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-resolve_panel_index'><code>LayerProcessor$resolve_panel_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="swap_point_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-swap_point_axes'><code>LayerProcessor$swap_point_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_columns"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_columns'><code>LayerProcessor$unflip_columns()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_panel_params"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_panel_params'><code>LayerProcessor$unflip_panel_params()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-needs_augmentation"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-needs_augmentation}{}}}
-\subsection{Method \code{needs_augmentation()}}{
-Violin needs to inject a boxplot layer
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$needs_augmentation()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$needs_augmentation()}}{
+  Violin needs to inject a boxplot layer
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$needs_augmentation()}
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-augment_plot"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-augment_plot}{}}}
-\subsection{Method \code{augment_plot()}}{
-Inject geom_boxplot into the plot for visual box + selectors
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$augment_plot(plot)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$augment_plot()}}{
+  Inject geom_boxplot into the plot for visual box + selectors
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$augment_plot(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Augmented ggplot2 object with boxplot layer added
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{ggplot2 object}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Augmented ggplot2 object with boxplot layer added
-Process the violin layer
-
-Returns a list with `multi_layer = TRUE` and two maidr layers:
-violin_box (with BoxSelector objects) and violin_kde.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$process(plot, layout, built = NULL, gt = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$process()}}{
+  Process the violin layer
+
+Returns a list with \code{multi_layer = TRUE} and two maidr layers:
+violin_box (with BoxSelector objects) and violin_kde.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$process(
+  plot,
+  layout,
+  built = NULL,
+  gt = NULL,
+  grob_id = NULL,
+  panel_id = NULL,
+  panel_ctx = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object (already augmented with boxplot)}
+      \item{\code{layout}}{Layout information}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{gt}}{Gtable object (optional)}
+      \item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+      \item{\code{panel_ctx}}{Panel context for faceted plots (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with multi_layer flag and layers, or NULL for facet panels
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object (already augmented with boxplot)}
-
-\item{\code{layout}}{Layout information}
-
-\item{\code{built}}{Built plot data (optional)}
-
-\item{\code{gt}}{Gtable object (optional)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with multi_layer flag and layers
-Extract box-summary statistics per violin group
-
-Computes min, Q1, median, Q3, max from the original data (since
-geom_violin only stores the KDE curve, not quartiles).
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-extract_box_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-extract_box_data}{}}}
-\subsection{Method \code{extract_box_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$extract_box_data(plot, built)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$extract_box_data()}}{
+  Extract box-summary statistics per violin group
+
+Computes min, Q1, median, Q3, max from the original data (since
+geom_violin only stores the KDE curve, not quartiles).
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$extract_box_data(plot, built)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of BoxPoint objects (one per violin)
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-
-\item{\code{built}}{Built plot data}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of BoxPoint objects (one per violin)
-Extract KDE density-curve data per violin group
-
-Uses ggplot2's built violin data (violinwidth, x, y, width columns)
-to compute left/right violin edges, applies RDP simplification to
-~30 points per violin, and includes the `width` field needed by the
-maidr frontend.  The `svg_x`/`svg_y` coordinates are injected later
-by `create_enhanced_svg()` after the grid device is drawn.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-extract_kde_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-extract_kde_data}{}}}
-\subsection{Method \code{extract_kde_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$extract_kde_data(plot, built, max_kde_points = 30L)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$extract_kde_data()}}{
+  Extract KDE density-curve data per violin group
+
+Uses ggplot2's built violin data (violinwidth, x, y, width columns)
+to compute left/right violin edges, applies RDP simplification to
+~30 points per violin, and includes the \code{width} field needed by the
+maidr frontend.  The \code{svg_x}/\code{svg_y} coordinates are injected later
+by \code{create_enhanced_svg()} after the grid device is drawn.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$extract_kde_data(plot, built, max_kde_points = 30L)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data}
+      \item{\code{max_kde_points}}{Maximum number of output points per violin (default 30)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of lists (ViolinKdePoint[][])
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-
-\item{\code{built}}{Built plot data}
-
-\item{\code{max_kde_points}}{Maximum number of output points per violin (default 30)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of lists (ViolinKdePoint[][])
-Simplify a single violin's KDE curve using RDP
-
-Uses ggplot2's built violin data columns (y, violinwidth, x, width)
-to compute the left/right edges, then applies RDP simplification.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-simplify_violin_kde"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-simplify_violin_kde}{}}}
-\subsection{Method \code{simplify_violin_kde()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$simplify_violin_kde(
+\subsection{\code{Ggplot2ViolinLayerProcessor$simplify_violin_kde()}}{
+  Simplify a single violin's KDE curve using RDP
+
+Uses ggplot2's built violin data columns (y, violinwidth, x, width)
+to compute the left/right edges, then applies RDP simplification.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$simplify_violin_kde(
   rows,
   cat_label,
   is_horizontal,
   max_points = 30L
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{rows}}{data.frame of built violin data for one group}
+      \item{\code{cat_label}}{Character label for this violin category}
+      \item{\code{is_horizontal}}{Logical, TRUE for horizontal violins}
+      \item{\code{max_points}}{Maximum number of output points}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of ViolinKdePoint dicts with data_left_x/data_right_x/data_y
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{rows}}{data.frame of built violin data for one group}
-
-\item{\code{cat_label}}{Character label for this violin category}
-
-\item{\code{is_horizontal}}{Logical, TRUE for horizontal violins}
-
-\item{\code{max_points}}{Maximum number of output points}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of ViolinKdePoint dicts with data_left_x/data_right_x/data_y
-Not used directly - required by base class interface
-Generate CSS selectors for violin polygons (for violin_kde layer)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$extract_data(
-  plot,
-  built = NULL,
-  scale_mapping = NULL
-)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$extract_data()}}{
+  Not used directly - required by base class interface
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$extract_data(plot, built = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$generate_selectors(
+\subsection{\code{Ggplot2ViolinLayerProcessor$generate_selectors()}}{
+  Generate CSS selectors for violin polygons (for violin_kde layer)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$generate_selectors(
   plot,
   gt = NULL,
   grob_id = NULL,
   panel_ctx = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{gt}}{Gtable object}
+      \item{\code{grob_id}}{Grob ID (for faceted plots)}
+      \item{\code{panel_ctx}}{Panel context (for faceted plots)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of CSS selector strings (one per violin)
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-
-\item{\code{gt}}{Gtable object}
-
-\item{\code{grob_id}}{Grob ID (for faceted plots)}
-
-\item{\code{panel_ctx}}{Panel context (for faceted plots)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of CSS selector strings (one per violin)
-Generate BoxSelector objects for the injected boxplot grobs
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-generate_box_selectors"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-generate_box_selectors}{}}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$generate_box_selectors()}}{
+  Generate BoxSelector objects for the injected boxplot grobs
 
 Walks the gtable to find geom_boxplot grobs and produces a
 BoxSelector list (one per violin) with CSS selectors for min,
 iq, q2, max, lowerOutliers, upperOutliers.
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-generate_box_selectors"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-generate_box_selectors}{}}}
-\subsection{Method \code{generate_box_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$generate_box_selectors(plot, gt, built)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$generate_box_selectors(
+  plot,
+  gt,
+  built,
+  panel_ctx = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object (augmented with boxplot)}
+      \item{\code{gt}}{Gtable object}
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_ctx}}{Panel context (for patchwork leaves)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of BoxSelector objects
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object (augmented with boxplot)}
-
-\item{\code{gt}}{Gtable object}
-
-\item{\code{built}}{Built plot data}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of BoxSelector objects
-Determine orientation from built data
-Get the effective mapping (layer mapping merged with plot mapping)
-Get original data used by this layer
-Get category labels from panel params
-Find the boxplot layer index in the augmented plot
-Find the main panel grob
-Recursively find all grob IDs matching a pattern
-Find direct children of a named parent matching a pattern
-Find a grob by its name (recursive)
-Find the first descendant matching a pattern under a named parent
-Find all descendants matching a pattern under a named parent
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-determine_orientation"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-determine_orientation}{}}}
-\subsection{Method \code{determine_orientation()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$determine_orientation(built)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$determine_orientation()}}{
+  Determine orientation from built data
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$determine_orientation(built)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-get_effective_mapping"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-get_effective_mapping}{}}}
-\subsection{Method \code{get_effective_mapping()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$get_effective_mapping(plot)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$get_effective_mapping()}}{
+  The violin layer's mapping merged with the plot's
+
+Built in ggplot2's own order -- the layer's own aesthetics first, then
+whatever only the plot maps -- because the order is not cosmetic.
+ggplot2 numbers \code{group} from the interaction of a layer's discrete
+columns taken in the order the mapping produced them, so a mapping
+assembled the other way round gives the injected box different group
+ids than the violin, and every lookup keyed on \code{group} then crosses
+the two layers.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$get_effective_mapping(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Named list of quosures, one per mapped aesthetic
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-get_original_data"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-get_original_data}{}}}
-\subsection{Method \code{get_original_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$get_original_data(plot)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-discrete_axis_labels"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-discrete_axis_labels}{}}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$discrete_axis_labels()}}{
+  Break labels of whichever panel axis holds the categories
+
+The categorical axis is the discrete one, which is not always the axis
+the data is keyed on: \code{coord_flip()} leaves the data x-major while
+moving the category labels to the y axis, so reading the axis off
+\code{flipped_aes} alone returns the value axis' breaks and every violin is
+labelled with a number.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$discrete_axis_labels(built)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of labels, or NULL when neither axis is
+discrete (a continuous category axis carries its value directly)
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-get_category_labels"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-get_category_labels}{}}}
-\subsection{Method \code{get_category_labels()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$get_category_labels(panel_params, is_horizontal)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-fill_levels_by_colour"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-fill_levels_by_colour}{}}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$fill_levels_by_colour()}}{
+  Map each mapped fill colour back to the level it came from
+
+Dodging splits one category into several violins that differ only by
+fill, and they all round to the same category position. Without the
+level, they are announced under one repeated name and cannot be told
+apart.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$fill_levels_by_colour(built)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Named character vector (colour -> level), or NULL when the plot
+has no fill scale
+  }
 }
 
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-group_labels"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-group_labels}{}}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$group_labels()}}{
+  Announceable label for each drawn violin
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$group_labels(
+  built,
+  layer_data,
+  groups,
+  is_horizontal
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+      \item{\code{layer_data}}{Built data for the violin layer}
+      \item{\code{groups}}{The layer's group ids, in emission order}
+      \item{\code{is_horizontal}}{Whether the value axis is x}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of labels, one per group
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-boxplot_stats"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-boxplot_stats}{}}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$boxplot_stats()}}{
+  Box statistics ggplot2 itself computed for each group
+
+The processor injects a \code{geom_boxplot()} so the SVG has box elements to
+highlight; that layer's \code{stat_boxplot} output is also the authoritative
+source for the numbers to announce. Reading it keyed by \code{group} avoids
+re-deriving quartiles from the original data via a rounded axis
+position and a string match on the break label -- a round trip that
+silently mislabels dodged violins and finds nothing at all under
+\code{coord_flip()}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$boxplot_stats(plot, built)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    data.frame of the boxplot layer's built data, or NULL
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_boxplot_layer_index"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_boxplot_layer_index}{}}}
-\subsection{Method \code{find_boxplot_layer_index()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_boxplot_layer_index(plot)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_boxplot_layer_index()}}{
+  Find the boxplot layer index in the augmented plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_boxplot_layer_index(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer index of the boxplot layer, or NULL
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_panel_grob"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_panel_grob}{}}}
-\subsection{Method \code{find_panel_grob()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_panel_grob(gt)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_panel_grob()}}{
+  Find the panel grob this layer draws into
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_panel_grob(gt, panel_ctx = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{gt}}{Gtable object}
+      \item{\code{panel_ctx}}{Panel context for patchwork leaves; NULL for a
+single plot, where the panel is the cell literally named "panel"}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The panel gTree, or NULL when it cannot be resolved
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_grob_ids"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_grob_ids}{}}}
-\subsection{Method \code{find_grob_ids()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_grob_ids(grob, pattern)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_grob_ids()}}{
+  Recursively find all grob IDs matching a pattern
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_grob_ids(grob, pattern)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{Grob tree to search}
+      \item{\code{pattern}}{Regular expression matched against grob names}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of unique matching grob names
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_direct_children"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_direct_children}{}}}
-\subsection{Method \code{find_direct_children()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_direct_children(grob, parent_id, pattern)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_direct_children()}}{
+  Find direct children of a named parent matching a pattern
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_direct_children(grob, parent_id, pattern)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{Grob tree to search}
+      \item{\code{parent_id}}{Name of the parent grob}
+      \item{\code{pattern}}{Regular expression matched against child names}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of matching child names
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_grob_by_id"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_grob_by_id}{}}}
-\subsection{Method \code{find_grob_by_id()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_grob_by_id(grob, target_id)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_grob_by_id()}}{
+  Find a grob by its name (recursive)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_grob_by_id(grob, target_id)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{Grob tree to search}
+      \item{\code{target_id}}{Name of the grob to find}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The matching grob, or NULL
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_desc_by_pattern"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_desc_by_pattern}{}}}
-\subsection{Method \code{find_desc_by_pattern()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_desc_by_pattern(grob, parent_id, pattern)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_desc_by_pattern()}}{
+  Find the first descendant matching a pattern under a named parent
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_desc_by_pattern(grob, parent_id, pattern)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{Grob tree to search}
+      \item{\code{parent_id}}{Name of the parent grob}
+      \item{\code{pattern}}{Regular expression matched against descendant names}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The first matching name, or NULL
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-find_all_desc_by_pattern"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-find_all_desc_by_pattern}{}}}
-\subsection{Method \code{find_all_desc_by_pattern()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$find_all_desc_by_pattern(grob, parent_id, pattern)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$find_all_desc_by_pattern()}}{
+  Find all descendants matching a pattern under a named parent
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$find_all_desc_by_pattern(grob, parent_id, pattern)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{Grob tree to search}
+      \item{\code{parent_id}}{Name of the parent grob}
+      \item{\code{pattern}}{Regular expression matched against descendant names}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of matching descendant names
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2ViolinLayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2ViolinLayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2ViolinLayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2ViolinLayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2ViolinLayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

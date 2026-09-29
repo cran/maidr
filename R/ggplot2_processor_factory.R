@@ -1,5 +1,6 @@
 #' ggplot2 Processor Factory
 #'
+#' @description
 #' Factory for creating ggplot2-specific processors. This factory uses the existing
 #' ggplot2 layer processors and wraps them in the new unified interface.
 #'
@@ -10,12 +11,12 @@ Ggplot2ProcessorFactory <- R6::R6Class(
   "Ggplot2ProcessorFactory",
   inherit = ProcessorFactory,
   public = list(
-    #' Initialize the ggplot2 processor factory
+    #' @description Initialize the ggplot2 processor factory
     initialize = function() {
       # No additional initialization needed
     },
 
-    #' Create a processor for a specific plot type
+    #' @description Create a processor for a specific plot type
     #' @param plot_type The type of plot (e.g., "bar", "line", "point")
     #' @param layer_info Information about the layer (contains plot object and metadata)
     #' @return Processor instance for the specified plot type
@@ -30,12 +31,50 @@ Ggplot2ProcessorFactory <- R6::R6Class(
         "bar" = Ggplot2BarLayerProcessor$new(layer_info),
         "dodged_bar" = Ggplot2DodgedBarLayerProcessor$new(layer_info),
         "stacked_bar" = Ggplot2StackedBarProcessor$new(layer_info),
+        # A filled bar is a stacked bar whose segments have been rescaled to
+        # shares, so it is extracted by the same processor; only the emitted
+        # type and the value it reads off the built data differ.
+        "stacked_normalized_bar" = Ggplot2StackedBarProcessor$new(layer_info),
+        "pie" = Ggplot2PieLayerProcessor$new(layer_info),
         "hist" = Ggplot2HistogramLayerProcessor$new(layer_info),
+        # A stack of dots is a bar and the layer emits `hist`, but it reads
+        # from different columns and has no per-bin element to highlight.
+        "dotplot" = Ggplot2DotplotLayerProcessor$new(layer_info),
         "line" = Ggplot2LineLayerProcessor$new(layer_info),
+        # A ROC curve is a multi-series line whose x is a rate: the line
+        # processor reads it, and this one hands the rates back as numbers
+        # with the thresholds and the areas the line has no field for.
+        "roc" = Ggplot2RocLayerProcessor$new(layer_info),
+        "area" = Ggplot2AreaLayerProcessor$new(layer_info),
+        # The three area variants differ in how their bands relate, not in
+        # where the numbers are read from, so one processor emits all three
+        # and decides the type from the layer's position.
+        "stacked_area" = Ggplot2AreaLayerProcessor$new(layer_info),
+        "stacked_normalized_area" = Ggplot2AreaLayerProcessor$new(layer_info),
+        "step" = Ggplot2StepLayerProcessor$new(layer_info),
         "smooth" = Ggplot2SmoothLayerProcessor$new(layer_info),
+        # A field drawn as curves of constant value, the level being a
+        # number on every row rather than a fill colour.
+        "contour" = Ggplot2ContourLayerProcessor$new(layer_info),
+        # A segment whose ends share a coordinate is an interval in a lane,
+        # which is a schedule rather than a shape of its own.
+        "gantt" = Ggplot2GanttLayerProcessor$new(layer_info),
         "heat" = Ggplot2HeatmapLayerProcessor$new(layer_info),
+        # A hexbin is a lattice of counted cells like a heatmap, but its
+        # rows are staggered, so it reads through a processor of its own.
+        "hexbin" = Ggplot2HexbinLayerProcessor$new(layer_info),
         "point" = Ggplot2PointLayerProcessor$new(layer_info),
+        # A rug marks observations rather than pairs of them, and addresses
+        # its ticks through a wrapper ggplot2 leaves unnamed, so it reads
+        # through a processor of its own and emits `point`.
+        "rug" = Ggplot2RugLayerProcessor$new(layer_info),
+        # A closed path is a path, so this emits `line`; it needs a
+        # processor of its own because its grob is named after its geom and
+        # is addressed per group, where a line's is anonymous and found by
+        # draw order.
+        "polygon" = Ggplot2PolygonLayerProcessor$new(layer_info),
         "box" = Ggplot2BoxplotLayerProcessor$new(layer_info),
+        "error_bar" = Ggplot2ErrorbarLayerProcessor$new(layer_info),
         "violin" = Ggplot2ViolinLayerProcessor$new(layer_info),
         "candlestick" = Ggplot2CandlestickProcessor$new(layer_info),
         # For unknown types, use the generic processor
@@ -43,7 +82,7 @@ Ggplot2ProcessorFactory <- R6::R6Class(
       )
     },
 
-    #' Get list of supported plot types
+    #' @description Get list of supported plot types
     #' @return Character vector of supported plot types
     get_supported_types = function() {
       c(
@@ -51,54 +90,57 @@ Ggplot2ProcessorFactory <- R6::R6Class(
         "bar",
         "dodged_bar",
         "stacked_bar",
+        "stacked_normalized_bar",
+        "pie",
         "hist",
         "line",
+        "roc",
+        "area",
+        "stacked_area",
+        "stacked_normalized_area",
+        "step",
         "smooth",
+        "contour",
+        "gantt",
         "heat",
+        "hexbin",
         "point",
+        "rug",
+        "polygon",
         "box",
+        "error_bar",
         "violin",
         "candlestick",
         "unknown"
       )
     },
 
-    #' Get the system name
+    #' @description Get the system name
     #' @return System name string
     get_system_name = function() {
       "ggplot2"
     },
 
-    #' Check if a specific processor class is available
+    #' @description Check if a specific processor class is available
     #' @param processor_class_name Name of the processor class
     #' @return TRUE if available, FALSE otherwise
     is_processor_available = function(processor_class_name) {
-      exists(processor_class_name, mode = "function")
+      processor_class_exists(processor_class_name)
     },
 
-    #' Get available processor classes
+    #' @description Get available processor classes
+    #'
+    #' Enumerated from `create_processor()` rather than listed here, so the
+    #' answer cannot drift away from what the factory actually dispatches to
+    #' (#200).
+    #'
     #' @return Character vector of available processor class names
     get_available_processors = function() {
-      processor_classes <- c(
-        "Ggplot2BarLayerProcessor",
-        "Ggplot2DodgedBarLayerProcessor",
-        "Ggplot2StackedBarProcessor",
-        "Ggplot2LineLayerProcessor",
-        "Ggplot2PointLayerProcessor",
-        "Ggplot2HistogramLayerProcessor",
-        "Ggplot2SmoothLayerProcessor",
-        "Ggplot2BoxplotLayerProcessor",
-        "Ggplot2ViolinLayerProcessor",
-        "Ggplot2CandlestickProcessor",
-        "Ggplot2HeatmapLayerProcessor",
-        "Ggplot2UnknownLayerProcessor"
-      )
-
-      available <- sapply(processor_classes, self$is_processor_available)
-      names(available)[available]
+      classes <- dispatched_processor_classes(Ggplot2ProcessorFactory, "Ggplot2")
+      Filter(self$is_processor_available, classes)
     },
 
-    #' Create a processor with error handling
+    #' @description Create a processor with error handling
     #' @param plot_type The type of plot
     #' @param plot_object The plot object
     #' @return Processor instance or NULL if creation fails

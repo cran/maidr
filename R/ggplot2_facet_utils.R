@@ -4,7 +4,8 @@
 #' These functions handle panel extraction, processing, and grid organization
 #' for faceted plots in a unified way.
 #'
-#' @keywords internal
+#' @noRd
+NULL
 
 #' Process a faceted plot and return organized subplot data
 #' @param plot The faceted ggplot2 object
@@ -55,9 +56,14 @@ get_facet_groups <- function(panel_info, built) {
   facet_groups <- list()
 
   if (!is.null(built$layout$facet)) {
+    # facet_wrap stores variables in params$facets; facet_grid splits
+    # them across params$rows AND params$cols - both must be included
     facet_vars <- names(built$layout$facet$params$facets)
     if (length(facet_vars) == 0) {
-      facet_vars <- names(built$layout$facet$params$rows)
+      facet_vars <- c(
+        names(built$layout$facet$params$rows),
+        names(built$layout$facet$params$cols)
+      )
     }
 
     for (var in facet_vars) {
@@ -68,6 +74,42 @@ get_facet_groups <- function(panel_info, built) {
   }
 
   facet_groups
+}
+
+#' Rows of a layer's own data that belong to one facet panel
+#'
+#' The obvious `values == group` is wrong the moment the facet column holds
+#' an `NA`: `==` answers `NA` for that row, and `[` turns an `NA` index into
+#' a fabricated all-`NA` row. One missing facet value therefore injects junk
+#' rows into EVERY panel's subset, not only the panel the `NA` belongs to.
+#'
+#' `NA` is a panel, not an absence. ggplot2 lays out a real panel for it and
+#' draws "NA" on its strip, so the matching rows have to be selected for that
+#' panel rather than dropped everywhere. `%in%` handles the ordinary levels
+#' (it scores an `NA` value as `FALSE` instead of `NA`), and `is.na()` picks
+#' out the `NA` panel's own rows. A facet column that literally contains the
+#' string "NA" stays distinct from a missing value: `as.character()` leaves
+#' the former as `"NA"` and the latter as `NA_character_`.
+#'
+#' @param values The facet column of the layer's data
+#' @param group The panel's own facet group, possibly `NA`
+#' @return A logical vector, one element per row, never `NA`
+#' @keywords internal
+facet_group_rows <- function(values, group) {
+  values <- as.character(values)
+  group <- as.character(group)
+
+  # `get_facet_groups()` builds each entry from a one-row slice of the layout,
+  # so the only reachable shape today is a length-1 group. The length test is
+  # defensive: a zero-length group would make `%in%` answer FALSE for every
+  # row, and a longer one would quietly widen the panel to a set of levels,
+  # neither of which is a panel identity. Both degrade to "the missing panel"
+  # instead, which is the only other thing a panel can be.
+  if (length(group) != 1L || is.na(group)) {
+    return(is.na(values))
+  }
+
+  values %in% group
 }
 
 #' Process a single facet panel
@@ -95,7 +137,6 @@ process_facet_panel <- function(
 
   for (layer_idx in seq_along(plot$layers)) {
     layer <- plot$layers[[layer_idx]]
-    layer_info <- list(index = layer_idx, type = class(layer$geom)[1])
 
     registry <- get_global_registry()
     system_name <- "ggplot2"
@@ -103,6 +144,31 @@ process_facet_panel <- function(
     adapter <- registry$get_adapter(system_name)
 
     layer_type <- adapter$detect_layer_type(layer, plot)
+    # The detected type, as the single-plot path passes it. Processors read
+    # `layer_info$type` to tell their variants apart -- the stacked bar
+    # reader announces proportions only for `stacked_normalized_bar` -- and
+    # the geom class this used to carry matched none of them, so a faceted
+    # `position = "fill"` chart announced counts.
+    layer_info <- list(index = layer_idx, type = layer_type)
+
+    # A layer tagged "skip" is drawn but carries no observations -- a
+    # reference line, a text annotation, a candlestick's wick folded into its
+    # body. `create_processor()` has no "skip" arm, so without this it falls
+    # to the switch default and builds an *unknown* processor, whose result
+    # then wins the "first layer that produced a result" scan below.
+    #
+    # Measured on a faceted scatter with the reference line added first::
+    #
+    #     geom_hline() + geom_point() + facet_wrap(~f)   layers [skip skip]
+    #     geom_point() + geom_hline() + facet_wrap(~f)   layers [point point]
+    #
+    # Same chart, same data, typed by which layer happened to be written
+    # first. The patchwork paths already guard this (`ggplot2_patchwork_utils.R`),
+    # as does `create_layer_processors()`; the facet path did not (#176).
+    if (identical(layer_type, "skip")) {
+      next
+    }
+
     processor <- factory$create_processor(layer_type, layer_info)
 
     if (!is.null(processor)) {
@@ -116,14 +182,14 @@ process_facet_panel <- function(
         row = panel_info$ROW,
         col = panel_info$COL,
         panel_id = panel_info$PANEL,
-        layer_index = layer_idx
+        layer_index = layer_idx,
+        facet_groups = facet_groups
       )
       result <- processor$process(
         plot,
         layout,
         built,
         gtable,
-        scale_mapping = NULL,
         grob_id = NULL,
         panel_id = panel_info$PANEL,
         panel_ctx = panel_ctx
@@ -136,31 +202,79 @@ process_facet_panel <- function(
   combined_data <- combine_facet_layer_data(layer_results)
   combined_selectors <- combine_facet_layer_selectors(layer_results)
 
-  subplot_id <- paste0("maidr-subplot-", as.integer(Sys.time()), "-", panel_info$PANEL)
+  subplot_id <- paste0("maidr-subplot-", generate_unique_id(), "-", panel_info$PANEL)
 
   layers <- list()
   if (length(combined_data) > 0) {
-    layer_id <- paste0("maidr-layer-", as.integer(Sys.time()), "-", panel_info$PANEL)
+    layer_id <- paste0("maidr-layer-", generate_unique_id(), "-", panel_info$PANEL)
 
-    # Determine layer type from the first layer processor
-    registry <- get_global_registry()
-    system_name <- "ggplot2"
-    adapter <- registry$get_adapter(system_name)
-    layer_type <- adapter$detect_layer_type(plot$layers[[1]], plot)
+    # Determine layer type from the first layer that actually produced a
+    # result (typing everything from plot$layers[[1]] mislabels
+    # multi-layer faceted plots whose first layer was skipped)
+    layer_type <- NULL
+    for (result in layer_results) {
+      if (!is.null(result) && !is.null(result$type)) {
+        layer_type <- result$type
+        break
+      }
+    }
+    if (is.null(layer_type)) {
+      registry <- get_global_registry()
+      system_name <- "ggplot2"
+      adapter <- registry$get_adapter(system_name)
+      first_processed <- which(!vapply(layer_results, is.null, logical(1)))
+      source_layer <- if (length(first_processed) > 0) {
+        plot$layers[[first_processed[1]]]
+      } else {
+        plot$layers[[1]]
+      }
+      layer_type <- adapter$detect_layer_type(source_layer, plot)
+    }
 
     facet_title <- ""
     if (length(facet_groups) > 0) {
       facet_title <- paste(facet_groups, collapse = " & ")
     }
 
-    axes <- build_axes(
-      x = if (!is.null(plot$labels$x)) plot$labels$x else "Categories",
-      y = if (!is.null(plot$labels$y)) plot$labels$y else ""
-    )
+    # Prefer the axes the layer processors already resolved. They start from
+    # the BUILT plot's labels, which is where ggplot2 records defaults derived
+    # from aesthetics and stats -- an unbuilt `plot$labels` holds only explicit
+    # `labs()` overrides, so reading it drops "count" for geom_bar() and the
+    # mapped column name for everything else. They also carry the legend title
+    # as z for grouped layers, which a rebuilt {x, y} pair cannot express.
+    #
+    # The leading layer wins for a key it defines -- x and y are the panel's
+    # shared scales, so every layer agrees on them. A key it does NOT define
+    # is filled from a later layer, because the panel collapses all of them
+    # into one payload entry. z is the case that matters: an ungrouped first
+    # layer carries no legend title while a later grouped layer still writes
+    # z VALUES into the shared data, and a z value with no label is announced
+    # as the generic word "Group".
+    axes <- NULL
+    for (result in layer_results) {
+      if (is.null(result) || length(result$axes) == 0) {
+        next
+      }
+      if (is.null(axes)) {
+        axes <- result$axes
+        next
+      }
+      for (key in setdiff(names(result$axes), names(axes))) {
+        axes[[key]] <- result$axes[[key]]
+      }
+    }
+    if (is.null(axes)) {
+      axes <- build_axes(
+        x = if (!is.null(plot$labels$x)) plot$labels$x else "Categories",
+        y = if (!is.null(plot$labels$y)) plot$labels$y else ""
+      )
+    }
 
-    # Add format config to x axis if available (per-axis nested schema)
+    # Add format config per axis (attaching the whole {x, y} list as the
+    # x-axis format would drop the y format and malform the x one)
     if (!is.null(format_config)) {
-      axes <- attach_axis_format(axes, "x", format_config)
+      axes <- attach_axis_format(axes, "x", format_config$x)
+      axes <- attach_axis_format(axes, "y", format_config$y)
     }
 
     validate_axes(axes, context = "facet subplot")
@@ -173,6 +287,32 @@ process_facet_panel <- function(
       data = combined_data,
       selectors = combined_selectors
     )
+
+    # Carry the processor's remaining fields the way the patchwork path does
+    # (orientation, violinOptions, domMapping, the `.panel_*` hints the SVG
+    # coordinate injection reads). Dropping them silently un-configured every
+    # faceted panel: a dodged `stat = "count"` layer asks for the forward
+    # per-column highlight walk and got the default reverse one, so every
+    # panel highlighted its neighbour's bars.
+    #
+    # A panel collapses all of its layers into one entry, so the leading
+    # layer wins a key it defines -- the same precedence the axes above use.
+    for (result in layer_results) {
+      if (is.null(result)) {
+        next
+      }
+      for (field_name in names(result)) {
+        if (field_name %in% c(
+          "id", "type", "selectors", "data", "title", "axes",
+          "labels", "multi_layer", "layers"
+        )) {
+          next
+        }
+        if (is.null(layer[[field_name]])) {
+          layer[[field_name]] <- result[[field_name]]
+        }
+      }
+    }
 
     layers[[1]] <- layer
   }
@@ -217,12 +357,28 @@ combine_facet_layer_data <- function(layer_results) {
   combined_data <- list()
 
   for (result in layer_results) {
-    if (!is.null(result) && !is.null(result$data)) {
-      if (is.list(result$data) && length(result$data) > 0) {
-        combined_data <- c(combined_data, result$data)
-      } else {
-        combined_data <- c(combined_data, list(result$data))
-      }
+    if (is.null(result) || is.null(result$data)) {
+      next
+    }
+    # A processor that drew nothing in this panel returns `list()`. Wrapping
+    # that in `list()` used to turn "no data" into ONE empty series, which
+    # the caller reads as a layer worth emitting: the panel came out as
+    # `"data":[[]]` with an empty selector list, and a reader entering it was
+    # told "this is a box plot" and then heard "cat is undefined, lower
+    # outlier(s) v is undefined" while the sonification threw on a
+    # non-finite AudioParam. An empty facet level (`drop = FALSE` over a
+    # factor with an unused level) reaches this on every processor.
+    #
+    # Contribute nothing instead. With no layer left, the panel is emitted
+    # with `layers = list()`, which the frontend already handles -- the Base
+    # R `layout()` path emits zero-layer cells today and loads clean.
+    if (length(result$data) == 0) {
+      next
+    }
+    if (is.list(result$data)) {
+      combined_data <- c(combined_data, result$data)
+    } else {
+      combined_data <- c(combined_data, list(result$data))
     }
   }
 

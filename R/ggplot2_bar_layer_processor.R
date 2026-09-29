@@ -7,27 +7,119 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
   "Ggplot2BarLayerProcessor",
   inherit = LayerProcessor,
   public = list(
+    #' @description Process the layer: read its bars, selectors and orientation from the built plot
+    #' @param plot The ggplot2 object
+    #' @param layout Layout information
+    #' @param built Built plot data (optional)
+    #' @param gt Gtable object (optional)
+    #' @param grob_id Grob ID for faceted plots (optional)
+    #' @param panel_id Panel ID for faceted plots (optional)
+    #' @param panel_ctx Panel context for panel-scoped selector generation (optional)
+    #' @return List describing the layer for the MAIDR payload
     process = function(plot,
                        layout,
                        built = NULL,
                        gt = NULL,
-                       scale_mapping = NULL,
                        grob_id = NULL,
                        panel_id = NULL,
                        panel_ctx = NULL) {
-      data <- self$extract_data(plot, built, scale_mapping, panel_id)
+      data <- self$extract_data(plot, built, panel_id)
       selectors <- self$generate_selectors(plot, gt, grob_id, panel_ctx)
+      # Asked once, and both the key and the layout it decides are set from
+      # the one answer -- they describe the same fact and could not be allowed
+      # to disagree.
+      horizontal <- self$is_flipped(plot, built)
       list(
-        data = data,
+        data = if (horizontal) self$swap_point_axes(data) else data,
         selectors = selectors,
+        orientation = if (horizontal) "horz" else "vert",
         title = if (!is.null(layout$title)) layout$title else "",
         axes = self$extract_layer_axes(plot, layout)
       )
     },
+    #' @description Is this layer's category axis `y` rather than `x`?
+    #'
+    #' `ggplot(df, aes(y = g, x = n)) + geom_col()` is the ordinary spelling of
+    #' a horizontal bar chart, and `ggplot_build()` marks it `flipped_aes` and
+    #' swaps which computed column holds what. Everything below reads `x` as
+    #' the category and `y` as the measure, so on a flipped layer it picked up
+    #' exactly the wrong pair: `apple/banana/cherry` at `30/70/50` came out as
+    #' category `"30"` with value `1`, category `"50"` with value `3` and
+    #' category `"70"` with value `2` -- the labels gone, the values replaced
+    #' by factor codes, and the rows resorted by the measure (#162).
+    #'
+    #' `coord_flip()` is not this. It rotates the coordinate system and leaves
+    #' `flipped_aes` alone, so its data layout is genuinely unflipped, and it
+    #' is reported `vert` today. That question spans every processor.
+    #'
+    #' Should it ever be answered here, the key and the point layout have to
+    #' move together: `"horz"` and the vertical `x = category, y = measure`
+    #' pairing is precisely the combination #184 was about, and a
+    #' `coord_flip()` chart currently reads correctly only because both halves
+    #' are left in their vertical form. That is what `swap_point_axes()`
+    #' being driven from this same answer is for.
+    #'
+    #' @param plot The ggplot2 object.
+    #' @param built Its `ggplot_build()` result, when the caller has one.
+    #' @return `TRUE` when the category runs up the y axis.
+    is_flipped = function(plot, built = NULL) {
+      if (is.null(built)) {
+        built <- ggplot2::ggplot_build(plot)
+      }
+      self$is_flipped_layer(built)
+    },
+    #' @description Exchange a plot's x and y aesthetics
+    #'
+    #' Returns a copy: the mapping is only read to recover the category's
+    #' column name, and the caller's plot is still wanted unswapped for
+    #' selectors and axis labels.
+    #'
+    #' The layer is copied too. A ggplot2 layer is a ggproto object, which
+    #' is an environment, so assigning into `plot$layers[[i]]$mapping`
+    #' wrote through to the caller's plot: after one read a horizontal
+    #' `geom_col(aes(y = g, x = n))` was a vertical chart, for the render
+    #' and for the user. The swapped mapping goes on a child object that
+    #' inherits everything else from the layer, so the layer itself is
+    #' never written.
+    #'
+    #' @param plot The ggplot2 object.
+    #' @return A copy whose plot-level and layer-level x/y mappings are swapped.
+    unflip_mapping = function(plot) {
+      swap <- function(mapping) {
+        if (is.null(mapping)) {
+          return(mapping)
+        }
+        held_x <- mapping$x
+        mapping$x <- mapping$y
+        mapping$y <- held_x
+        mapping
+      }
+      plot$mapping <- swap(plot$mapping)
+      layer_index <- self$get_layer_index()
+      if (layer_index <= length(plot$layers)) {
+        layer <- plot$layers[[layer_index]]
+        plot$layers[[layer_index]] <- ggplot2::ggproto(
+          NULL, layer,
+          mapping = swap(layer$mapping)
+        )
+      }
+      plot
+    },
+    #' @description Whether the plot data must be reordered before drawing, so the emitted order
+    #'   matches the drawn rects
+    #' @return TRUE
     needs_reordering = function() {
       TRUE
     },
+    #' @description Reorder the plot data by category so the emitted rows match the drawn rects
+    #' @param data The data frame ggplot2 will draw from
+    #' @param plot The ggplot2 object
+    #' @return The reordered data frame
     reorder_layer_data = function(data, plot) {
+      # Sorted by the *category*, which is the y mapping on a flipped layer.
+      # Sorting by x there ordered the rows by the measure, so the emitted
+      # order stopped matching the drawn rects as well.
+      plot <- if (self$is_flipped(plot)) self$unflip_mapping(plot) else plot
       plot_mapping <- plot$mapping
       layer_mapping <- plot$layers[[self$get_layer_index()]]$mapping
       x_col <- NULL
@@ -44,13 +136,29 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
         data
       }
     },
-    extract_data = function(plot, built = NULL, scale_mapping = NULL, panel_id = NULL) {
+    #' @description One point per bar, read from the built plot
+    #' @param plot The ggplot2 object
+    #' @param built Built plot data (optional)
+    #' @param panel_id Panel ID for faceted plots (optional)
+    #' @return List of points
+    extract_data = function(plot, built = NULL, panel_id = NULL) {
       if (is.null(built)) {
         built <- ggplot2::ggplot_build(plot)
       }
 
       layer_index <- self$get_layer_index()
       built_data <- built$data[[layer_index]]
+
+      # Everything below reads `x` as the category and `y` as the measure.
+      # A flipped layer holds them the other way round, so the columns, the
+      # mapping the category's name is recovered from, and the panel scale its
+      # labels come from are all exchanged here rather than each reader being
+      # taught to ask (#162).
+      flipped <- isTRUE(built_data$flipped_aes[1])
+      if (flipped) {
+        built_data <- self$unflip_columns(built_data)
+        plot <- self$unflip_mapping(plot)
+      }
 
       if (!is.null(panel_id) && "PANEL" %in% names(built_data)) {
         built_data <- built_data[built_data$PANEL == panel_id, ]
@@ -60,31 +168,41 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
       if (!is.null(panel_id)) {
         # Use x values from built_data (contains actual axis values)
         # built_data$x contains the position indices, we need the actual axis values
-        if (!is.null(scale_mapping)) {
-          x_values <- self$apply_scale_mapping(built_data$x, scale_mapping)
+        # Map this panel's built x positions through the panel's OWN
+        # x-scale labels. Reading categories from the whole dataset
+        # mislabels panels whose category set differs (free scales,
+        # missing levels), since plot$data has no PANEL column.
+        panel_number <- suppressWarnings(as.integer(as.character(panel_id)))
+        panel_params_list <- built$layout$panel_params
+        panel_params <- if (
+          !is.na(panel_number) &&
+            panel_number >= 1 &&
+            panel_number <= length(panel_params_list)
+        ) {
+          panel_params_list[[panel_number]]
         } else {
-          plot_mapping <- plot$mapping
-          layer_mapping <- plot$layers[[layer_index]]$mapping
+          panel_params_list[[1]]
+        }
+        if (flipped) {
+          panel_params <- self$unflip_panel_params(panel_params)
+        }
 
-          x_col <- NULL
-          if (!is.null(layer_mapping) && !is.null(layer_mapping$x)) {
-            x_col <- rlang::as_label(layer_mapping$x)
-          } else if (!is.null(plot_mapping) && !is.null(plot_mapping$x)) {
-            x_col <- rlang::as_label(plot_mapping$x)
-          }
+        panel_labels <- NULL
+        if (!is.null(panel_params$x) && !is.null(panel_params$x$get_labels)) {
+          panel_labels <- panel_params$x$get_labels()
+        } else if (!is.null(panel_params$x.labels)) {
+          panel_labels <- panel_params$x.labels
+        }
 
-          # For faceted plots, we need to get the x values for this specific panel
-          if (!is.null(x_col) && x_col %in% names(plot$data)) {
-            panel_data <- plot$data
-            if ("PANEL" %in% names(panel_data)) {
-              panel_data <- panel_data[panel_data$PANEL == panel_id, ]
-            }
-            x_values <- unique(panel_data[[x_col]])
-            x_values <- sort(x_values)
-          } else {
-            # Fallback: use built_data$x but convert to character
-            x_values <- as.character(built_data$x)
-          }
+        # Break labels may only be INDEXED by the built positions on a
+        # discrete scale, where those positions are 1..n category
+        # numbers. On a continuous, Date or datetime scale the positions
+        # ARE the values, so indexing invents labels (x = 4 picking up
+        # the 4th break's label) or emits raw day counts for dates.
+        if (self$panel_x_is_discrete(panel_params, built_data$x, panel_labels)) {
+          x_values <- self$map_discrete_x(built_data$x, panel_labels)
+        } else {
+          x_values <- self$map_continuous_x(built_data$x, plot, layer_index)
         }
       } else {
         # Original logic for non-faceted plots
@@ -140,6 +258,9 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
         # 3. Fall back to x-scale break labels.
         if (is.null(x_values) && !is.null(built)) {
           panel_params <- built$layout$panel_params[[1]]
+          if (flipped) {
+            panel_params <- self$unflip_panel_params(panel_params)
+          }
           if (!is.null(panel_params$x) && !is.null(panel_params$x$get_labels)) {
             scale_labels <- panel_params$x$get_labels()
             scale_labels <- scale_labels[!is.na(scale_labels)]
@@ -188,6 +309,8 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
     #' default scale-tick labels ("Jan 02"). All other types use
     #' `as.character()`. Mirrors `Ggplot2CandlestickProcessor$format_x_value()`
     #' so candle and bar layers from the same Date column align string-wise.
+    #' @param x The value to format
+    #' @return Character vector
     format_x_value = function(x) {
       if (inherits(x, c("Date", "POSIXct", "POSIXlt"))) {
         return(format(x))
@@ -195,16 +318,112 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
       as.character(x)
     },
 
+    #' @description Does this panel draw x on a discrete scale?
+    #'
+    #' Only a discrete scale numbers its built positions 1..n, which is what
+    #' makes indexing the break labels with them legitimate.
+    #'
+    #' @param panel_params This panel's entry from `built$layout$panel_params`
+    #' @param x_pos Built x positions for this panel
+    #' @param panel_labels This panel's x break labels, or NULL
+    #' @return TRUE for a discrete x scale
+    panel_x_is_discrete = function(panel_params, x_pos, panel_labels) {
+      if (!is.numeric(x_pos) || length(x_pos) == 0) {
+        return(FALSE)
+      }
+      if (!is.null(panel_params$x) && is.function(panel_params$x$is_discrete)) {
+        discrete <- tryCatch(
+          isTRUE(panel_params$x$is_discrete()),
+          error = function(e) NULL
+        )
+        if (!is.null(discrete)) {
+          return(discrete)
+        }
+      }
+      # Flattened panel_params (older ggplot2) expose no scale object, so
+      # fall back to the shape of the positions: whole numbers covered by
+      # the break labels.
+      !is.null(panel_labels) &&
+        !anyNA(x_pos) &&
+        all(abs(x_pos - round(x_pos)) < 1e-6) &&
+        all(x_pos >= 1 & x_pos <= length(panel_labels))
+    },
+
+    #' @description Label discrete built positions with this panel's breaks.
+    #'
+    #' @param x_pos Built x positions for this panel
+    #' @param panel_labels This panel's x break labels, or NULL
+    #' @return Character vector of x labels
+    map_discrete_x = function(x_pos, panel_labels) {
+      x_values <- as.character(x_pos)
+      if (is.null(panel_labels) || !is.numeric(x_pos)) {
+        return(x_values)
+      }
+      idx <- as.integer(round(x_pos))
+      idx[is.na(idx) | idx < 1 | idx > length(panel_labels)] <- NA_integer_
+      labelled <- as.character(panel_labels[idx])
+      hit <- !is.na(labelled)
+      x_values[hit] <- labelled[hit]
+      x_values
+    },
+
+    #' @description Recover user-facing x values for a non-discrete scale.
+    #'
+    #' Built positions on a continuous, Date or datetime scale already are
+    #' the values, but a Date arrives as a day count. Matching them back to
+    #' the mapped column restores the original typing so `format_x_value()`
+    #' can emit "2024-01-02" rather than "19724". Mirrors the same recovery
+    #' in `Ggplot2LineLayerProcessor`.
+    #'
+    #' @param x_pos Built x positions for this panel
+    #' @param plot The ggplot object
+    #' @param layer_index Index of this layer within the plot
+    #' @return Character vector of x labels
+    map_continuous_x = function(x_pos, plot, layer_index) {
+      x_values <- as.character(x_pos)
+      if (!is.numeric(x_pos)) {
+        return(x_values)
+      }
+
+      layer_mapping <- plot$layers[[layer_index]]$mapping
+      x_col <- NULL
+      if (!is.null(layer_mapping) && !is.null(layer_mapping$x)) {
+        x_col <- rlang::as_label(layer_mapping$x)
+      } else if (!is.null(plot$mapping) && !is.null(plot$mapping$x)) {
+        x_col <- rlang::as_label(plot$mapping$x)
+      }
+      has_column <- !is.null(x_col) &&
+        is.data.frame(plot$data) &&
+        x_col %in% names(plot$data)
+      if (!has_column) {
+        return(x_values)
+      }
+
+      original <- sort(unique(plot$data[[x_col]]))
+      numeric_repr <- suppressWarnings(as.numeric(original))
+      if (length(numeric_repr) == 0 || anyNA(numeric_repr)) {
+        return(x_values)
+      }
+
+      match_idx <- match(round(as.numeric(x_pos), 6), round(numeric_repr, 6))
+      hit <- !is.na(match_idx)
+      if (any(hit)) {
+        x_values[hit] <- self$format_x_value(original[match_idx[hit]])
+      }
+      x_values
+    },
+
+    #' @description Selectors for the layer's rects
+    #' @param plot The ggplot2 object
+    #' @param gt Gtable object (optional)
+    #' @param grob_id Grob ID for faceted plots (optional)
+    #' @param panel_ctx Panel context for panel-scoped selector generation (optional)
+    #' @return List of selectors
     generate_selectors = function(plot, gt = NULL, grob_id = NULL, panel_ctx = NULL) {
       # Prefer panel-scoped selection when panel_ctx is provided
       if (!is.null(panel_ctx) && !is.null(gt)) {
-        pn <- panel_ctx$panel_name
-        idx <- which(grepl(paste0("^", pn, "\\b"), gt$layout$name))
-        if (length(idx) == 0) {
-          return(list())
-        }
-        panel_grob <- gt$grobs[[idx[1]]]
-        if (!inherits(panel_grob, "gTree")) {
+        panel_grob <- find_gtable_panel_grob(gt, panel_ctx)
+        if (is.null(panel_grob)) {
           return(list())
         }
 
@@ -226,7 +445,7 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
           names
         }
 
-        rect_names <- find_rect_names(panel_grob)
+        rect_names <- self$own_rect_names(panel_grob, find_rect_names)
         if (length(rect_names) == 0) {
           return(list())
         }
@@ -282,7 +501,7 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
           names
         }
 
-        rect_names <- find_rect_names(panel_grob)
+        rect_names <- self$own_rect_names(panel_grob, find_rect_names)
 
         if (length(rect_names) == 0) {
           return(list())
@@ -297,6 +516,30 @@ Ggplot2BarLayerProcessor <- R6::R6Class(
 
         selectors
       }
+    },
+
+    #' @description The rect grob names under this layer's own slot, or under the whole panel
+    #'
+    #' A panel holds one \code{geom_rect.rect} grob per bar layer, so a plot
+    #' that overlays two \code{geom_col()}s -- a total behind a highlighted
+    #' part is the usual reason -- has two, and a search over the panel
+    #' returns both to each layer. Its selectors then address every bar in
+    #' the panel: the frontend finds twice the marks it has points for and
+    #' highlights nothing, on both layers. So the search is scoped to the
+    #' layer's own slot (see \code{find_layer_slot_grob()}): whatever the
+    #' geom drew there, a bare rect grob or a tree wrapping one, and nothing
+    #' when it drew no rects here at all. The panel-wide search remains only
+    #' for a panel whose layout the slot cannot be read from.
+    #'
+    #' @param panel_grob The panel grob
+    #' @param find_rect_names Function collecting every rect grob name under a grob
+    #' @return Character vector of rect grob names
+    own_rect_names = function(panel_grob, find_rect_names) {
+      slot <- find_layer_slot_grob(panel_grob, self$get_layer_index())
+      if (!is.null(slot)) {
+        return(find_rect_names(slot))
+      }
+      find_rect_names(panel_grob)
     }
   )
 )

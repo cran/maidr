@@ -7,44 +7,71 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
   "Ggplot2StackedBarProcessor",
   inherit = LayerProcessor,
   public = list(
-    process = function(plot, layout, built = NULL, gt = NULL) {
-      data <- self$extract_data(plot, built)
+    #' @description Process the layer: read its series, selectors and the fill legend title from
+    #'   the built plot
+    #' @param plot The ggplot2 object
+    #' @param layout Layout information
+    #' @param built Built plot data (optional)
+    #' @param gt Gtable object (optional)
+    #' @param grob_id Grob ID for faceted plots (optional)
+    #' @param panel_id Panel ID for faceted plots (optional)
+    #' @param panel_ctx Panel context for panel-scoped selector generation (optional)
+    #' @return List describing the layer for the MAIDR payload
+    process = function(plot,
+                       layout,
+                       built = NULL,
+                       gt = NULL,
+                       grob_id = NULL,
+                       panel_id = NULL,
+                       panel_ctx = NULL) {
+      data <- self$extract_data(plot, built, panel_id = panel_id, panel_ctx = panel_ctx)
 
-      selectors <- self$generate_selectors(plot, gt)
+      selectors <- self$generate_selectors(plot, gt, panel_ctx = panel_ctx)
 
-      # Build axes including fill label for stacked bars
+      # Build axes including the fill legend title. A stacked bar layer only
+      # exists because fill is mapped, so the title is always meaningful.
       axes <- self$extract_layer_axes(plot, layout)
-
-      # Add fill axis label from built plot labels (includes labs(fill = ...))
-      if (!is.null(built)) {
-        fill_label <- built$plot$labels$fill
-      } else {
-        b <- ggplot2::ggplot_build(plot)
-        fill_label <- b$plot$labels$fill
-      }
-      if (is.null(fill_label)) {
-        # Fallback: get fill label from mapping expression
-        layer_index <- self$get_layer_index()
-        fill_quo <- plot$layers[[layer_index]]$mapping$fill
-        if (is.null(fill_quo)) fill_quo <- plot$mapping$fill
-        if (!is.null(fill_quo)) {
-          fill_label <- rlang::as_label(fill_quo)
-        }
-      }
+      fill_label <- resolve_legend_label(
+        plot,
+        built = built,
+        aes_names = "fill",
+        layer_index = self$get_layer_index()
+      )
       if (!is.null(fill_label)) {
         axes$z <- list(label = fill_label)
       }
 
+      # Asked once, and both the key and the layout it decides are set from
+      # the one answer. The layer used to emit no `orientation` at all, so a
+      # horizontal chart was read as a vertical one on top of everything else
+      # that was wrong with it (#186).
+      horizontal <- self$is_flipped_layer(built)
+
       list(
-        data = data,
+        data = if (horizontal) self$swap_point_axes(data) else data,
         selectors = selectors,
+        orientation = if (horizontal) "horz" else "vert",
         title = if (!is.null(layout$title)) layout$title else "",
-        axes = axes
+        axes = axes,
+        # ggplot2 draws each column's segments top first, and the bundled
+        # maidr.js pairs a flat rect list with the grid series by series
+        # unless the layer says `order = "column"`; its default walk within
+        # a column is then the reverse one this layer needs (see the note
+        # above `generate_selectors()`).
+        domMapping = list(order = "column")
       )
     },
+    #' @description Whether the plot data must be reordered before drawing, so the emitted order
+    #'   matches the drawn rects
+    #' @return TRUE
     needs_reordering = function() {
       TRUE
     },
+    #' @description Reorder the plot data by category and fill so the emitted rows match the drawn
+    #'   rects
+    #' @param data The data frame ggplot2 will draw from
+    #' @param plot The ggplot2 object
+    #' @return The reordered data frame
     reorder_layer_data = function(data, plot) {
       columns <- self$extract_plot_columns(plot)
       fill_col <- columns$fill_col
@@ -59,6 +86,9 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
       data <- data[order(data[[category_col]], data[[fill_col]]), , drop = FALSE]
       data
     },
+    #' @description The column names the plot maps to x, y and fill
+    #' @param plot The ggplot2 object
+    #' @return List with `category_col`, `value_col` and `fill_col`
     extract_plot_columns = function(plot) {
       plot_mapping <- plot$mapping
 
@@ -79,8 +109,34 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
         category_col = extract_col_name(plot_mapping$x)
       )
     },
-    extract_data = function(plot, built = NULL) {
+    #' @description One series per fill level, restricted to the panel's rows under faceting
+    #' @param plot The ggplot2 object
+    #' @param built Built plot data (optional)
+    #' @param panel_id Panel ID for faceted plots (optional)
+    #' @param panel_ctx Panel context for panel-scoped selector generation (optional)
+    #' @return List of series
+    extract_data = function(plot, built = NULL, panel_id = NULL, panel_ctx = NULL) {
       original_data <- plot$data
+
+      # Facet path: restrict the original data to this panel's facet
+      # group(s) so per-panel values are extracted. facet_group_rows() is
+      # NA-safe on purpose - see its comment; a bare `==` fabricated an
+      # all-NA row in every panel for each missing facet value.
+      if (!is.null(panel_ctx) && length(panel_ctx$facet_groups) > 0) {
+        for (facet_var in names(panel_ctx$facet_groups)) {
+          if (facet_var %in% names(original_data)) {
+            original_data <- original_data[
+              facet_group_rows(
+                original_data[[facet_var]],
+                panel_ctx$facet_groups[[facet_var]]
+              ),
+              ,
+              drop = FALSE
+            ]
+          }
+        }
+      }
+
       plot_mapping <- plot$mapping
       layer_index <- self$get_layer_index()
       layer_mapping <- plot$layers[[layer_index]]$mapping
@@ -109,38 +165,185 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
       has_y_mapping <- !is.null(y_quo)
       y_col <- if (has_y_mapping) rlang::as_label(y_quo) else NULL
 
+      # `position = "fill"` rescales every category to a common height, so the
+      # value the chart draws is a share and NOT the number sitting in the
+      # user's data frame. That matters twice below: the stat = "identity"
+      # branch reads `y` straight out of `original_data`, and the built-data
+      # branch prefers `stat_count()`'s untouched `count` column. Both would
+      # hand back tallies for a chart made entirely of proportions, so a
+      # normalized layer has to take the geometry route and subtract.
+      is_normalized <- identical(self$layer_info$type, "stacked_normalized_bar")
+
       if (is.null(built)) {
         built <- ggplot2::ggplot_build(plot)
       }
       built_data_layer <- built$data[[layer_index]]
 
-      # Determine stacking order from built data (bottom-to-top at first x position)
-      first_bar_data <- built_data_layer[built_data_layer$x == min(built_data_layer$x), ]
+      # Everything below reads `x` as the category and `y` as the measure, in
+      # the mapping and in the built geometry alike. A horizontal layer --
+      # `aes(n, g, fill = h)` -- holds both the other way round, and nothing
+      # here used to ask, so the columns became the chart's own numbers and
+      # the category names ended up in the slot the magnitude is read from
+      # (#186). Exchanged once, up front, so every branch below stays written
+      # against the one arrangement.
+      if (self$is_flipped_layer(built)) {
+        held_col <- x_col
+        x_col <- y_col
+        y_col <- held_col
+        built_data_layer <- self$unflip_columns(built_data_layer)
+      }
+
+      if (!is.null(panel_id) && "PANEL" %in% names(built_data_layer)) {
+        built_data_layer <- built_data_layer[
+          built_data_layer$PANEL == panel_id, ,
+          drop = FALSE
+        ]
+      }
+
+      # A row ggplot2 could not position - a missing value in a required
+      # aesthetic - stays in the built data with `x`, `ymin` and `ymax` set to
+      # NA rather than being deleted. It drew no rect, so it is not part of
+      # this layer, and leaving it in poisons `min(x)` below: every subsequent
+      # `x == min(x)` comparison answers NA and the stacking order comes back
+      # empty.
+      if ("x" %in% names(built_data_layer)) {
+        built_data_layer <- built_data_layer[
+          !is.na(built_data_layer$x), ,
+          drop = FALSE
+        ]
+      }
+
+      if (nrow(built_data_layer) == 0) {
+        return(list())
+      }
+
+      # Determine the stacking order (bottom-to-top) from one column's
+      # geometry. Read it off the FULLEST column, not the first one: a
+      # `geom_col()` frame need not be a complete grid, and a fill level the
+      # first column happens to lack was dropped from `stacking_order`
+      # entirely, so an entire series went unemitted - never announced, never
+      # highlighted (issue #94). Ties resolve to the smallest x, which is the
+      # first column, so a complete grid orders exactly as it always did.
+      rows_per_column <- table(built_data_layer$x)
+      fullest_x <- names(rows_per_column)[which.max(rows_per_column)]
+      first_bar_data <- built_data_layer[
+        as.character(built_data_layer$x) == fullest_x, ,
+        drop = FALSE
+      ]
       first_bar_data <- first_bar_data[order(first_bar_data$ymin), ]
 
-      if (has_y_mapping && !is.null(y_col) && y_col %in% names(original_data) &&
+      # The stat = "identity" branch reads the values out of the user's own
+      # data frame and can only pair them with the drawn rects row by row, so
+      # it is only usable while the two frames still have the same number of
+      # rows. `setNames()` does not object to a mismatch - it PADS the names
+      # with NA - so a frame ggplot2 partly discarded (one missing `y` is
+      # enough) used to yield a colour lookup full of NA names and die later
+      # in `order(NULL)`. When they no longer line up, read the built data
+      # instead: it is what was actually drawn.
+      rows_aligned <- nrow(original_data) == nrow(built_data_layer)
+
+      if (!is_normalized && rows_aligned &&
+          has_y_mapping && !is.null(y_col) && y_col %in% names(original_data) &&
           !is.null(fill_col) && fill_col %in% names(original_data) &&
           !is.null(x_col) && x_col %in% names(original_data)) {
-        # stat="identity": original data and built data have same row count,
-        # so setNames mapping is valid
         color_to_fill <- setNames(
           as.character(original_data[[fill_col]]),
           built_data_layer$fill
         )
-        stacking_order <- unique(color_to_fill[first_bar_data$fill])
+        x_values <- original_data[[x_col]]
+        fill_values <- original_data[[fill_col]]
 
-        # Read values from original data (original approach)
-        fill_groups <- split(original_data, original_data[[fill_col]])
+        # Every series gets one entry per x category, in the layer's x order,
+        # and every category ggplot2 drew gets a series -- the missing one
+        # included. `sort()` used to leave it out of both, so an `NA` fill
+        # lost its whole series (a drawn bar unreachable by any keystroke) and
+        # an `NA` x announced its value against an empty category (#112).
+        x_levels <- discrete_level_order(x_values)
+        fill_levels <- discrete_level_order(fill_values)
 
-        lapply(stacking_order, function(fill_value) {
-          group_data <- fill_groups[[as.character(fill_value)]]
-          group_data <- group_data[order(group_data[[x_col]]), ]
+        # Split row INDICES over the level order rather than the raw values:
+        # bare `split()` drops the missing group entirely, and its names
+        # cannot carry a level that is `NA` in the first place. Indices keep
+        # every series addressable by position, which is the only handle the
+        # missing level has.
+        fill_groups <- split(
+          seq_len(nrow(original_data)),
+          factor(as.character(fill_values), levels = fill_levels, exclude = NULL)
+        )
 
-          lapply(seq_len(nrow(group_data)), function(i) {
+        # The drawn geometry names fill VALUES; match them to level positions
+        # through `level_keys()` so a missing value finds the missing level
+        # instead of scoring `NA` against every candidate.
+        stacking_order <- match(
+          level_keys(unique(color_to_fill[first_bar_data$fill])),
+          level_keys(fill_levels)
+        )
+        stacking_order <- stacking_order[!is.na(stacking_order)]
+
+        # Only reachable when no single column holds every fill level, so the
+        # geometry above cannot place the stragglers. Appending them still
+        # beats dropping them: a series that is absent from the payload can
+        # never be announced at all.
+        stacking_order <- c(
+          stacking_order,
+          setdiff(seq_along(fill_levels), stacking_order)
+        )
+
+        # Two rows in the same (x, fill) cell stack into two rects and a grid
+        # has nowhere to put the second value, so that degenerate frame keeps
+        # the row-by-row reading rather than losing a row to the grid.
+        #
+        # A missing value in either aesthetic used to take the same exit,
+        # because `paste()` hid it from this test by stringifying it to "NA".
+        # `level_keys()` keeps the two apart, so the test means what it says.
+        cell_keys <- paste(
+          level_keys(x_values),
+          level_keys(fill_values),
+          sep = "\r"
+        )
+        griddable <- anyDuplicated(cell_keys) == 0L
+
+        lapply(stacking_order, function(fill_index) {
+          fill_level <- fill_levels[fill_index]
+          rows <- fill_groups[[fill_index]]
+          # Order by the level sequence, not by the values: `order()` puts a
+          # missing x last however the categories are laid out, which would
+          # walk this series' cells past the column its rect is drawn in.
+          rows <- rows[order(
+            factor(
+              as.character(x_values)[rows],
+              levels = x_levels,
+              exclude = NULL
+            )
+          )]
+
+          if (!griddable) {
+            return(lapply(rows, function(i) {
+              list(
+                x = level_label(as.character(x_values[i])),
+                y = original_data[[y_col]][i],
+                z = level_label(fill_level)
+              )
+            }))
+          }
+
+          # `NA` here serializes to JSON `null`, which the frontend reads as 0
+          # into `barValues` - hitting the `=== 0` sentinel so the cell claims
+          # no rect - while its formatter announces the raw `null` as
+          # "missing". See the long note in the dodged processor: the absent
+          # cell has to occupy a slot for the highlight to stay on the right
+          # bar, but it must not be announced as the value zero.
+          values <- setNames(
+            original_data[[y_col]][rows],
+            level_keys(x_values[rows])
+          )
+
+          lapply(x_levels, function(x_name) {
+            key <- level_keys(x_name)
             list(
-              x = as.character(group_data[[x_col]][i]),
-              y = group_data[[y_col]][i],
-              z = as.character(fill_value)
+              x = level_label(x_name),
+              y = if (key %in% names(values)) values[[key]] else NA_real_,
+              z = level_label(fill_level)
             )
           })
         })
@@ -149,6 +352,14 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
         # Get x-axis scale labels for readable category names
         x_labels <- NULL
         panel_params <- built$layout$panel_params[[1]]
+        # The categories of a horizontal layer are broken on the y scale, so
+        # reading `x` here gave a `position = "fill"` chart its own computed
+        # proportions ("0.00", "0.25", "0.50") as category names. The built
+        # columns were exchanged above; the scales the labels come off have to
+        # be exchanged with them (#186).
+        if (self$is_flipped_layer(built)) {
+          panel_params <- self$unflip_panel_params(panel_params)
+        }
         if (!is.null(panel_params$x) && !is.null(panel_params$x$get_labels)) {
           x_labels <- panel_params$x$get_labels()
         } else if (!is.null(panel_params$x.labels)) {
@@ -177,6 +388,11 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
         # order. So data[last] maps to DOM rect[0] (top segment) and data[0]
         # maps to the last DOM rect (bottom segment).
         # Therefore: data[0] = bottom fill level, data[last] = top fill level.
+        # Verified against the rendered SVG: gridSVG wraps the plot in a
+        # `translate(0, height) scale(1, -1)` group, so a rect's `y`
+        # attribute grows with its data value. Within one column the rect
+        # with the largest `y` (the top segment) is emitted first, and it is
+        # the last data series that receives it.
         fill_max_y <- tapply(built_data_layer$ymax, built_data_layer$fill, max)
         ordered_colors <- names(sort(fill_max_y, decreasing = FALSE))
 
@@ -186,16 +402,35 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
         lapply(ordered_colors, function(hex_color) {
           group_rows <- built_data_layer[built_data_layer$fill == hex_color, ]
 
+          # The scale's own label for the missing category is `NA`, not a
+          # string, so this used to hand the series a `z` of JSON `null` --
+          # a drawn segment whose group has no name (#112). `level_label()`
+          # gives it the two characters ggplot2 prints on its legend key.
           fill_label <- if (!is.null(fill_color_to_label) &&
                            hex_color %in% names(fill_color_to_label)) {
-            fill_color_to_label[[hex_color]]
+            level_label(fill_color_to_label[[hex_color]])
           } else {
             hex_color
           }
 
-          # Create a lookup of x_pos -> count for this fill color
+          # Create a lookup of x_pos -> value for this fill color.
+          #
+          # `count` is the raw tally `stat_count()` computed, and it is the
+          # right value for a stacked bar but the wrong one for a filled bar.
+          # `position = "fill"` rescales each category to a common height, so
+          # what the chart actually draws is every segment's *share* — while
+          # `count` keeps the untouched tally alongside it. Reading `count`
+          # there would announce counts for a chart made entirely of
+          # proportions, and the running total maidr.js derives would come out
+          # as the category total instead of the 1 the bar is drawn to.
+          # `geom_col()` has no `count` column at all and already falls
+          # through to the same subtraction once it reaches here.
           vals <- setNames(
-            if ("count" %in% names(group_rows)) group_rows$count else (group_rows$ymax - group_rows$ymin),
+            if (!is_normalized && "count" %in% names(group_rows)) {
+              group_rows$count
+            } else {
+              group_rows$ymax - group_rows$ymin
+            },
             group_rows$x
           )
 
@@ -212,7 +447,9 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
               0
             }
             list(
-              x = as.character(x_name),
+              # The scale's label for the missing category is `NA` here too,
+              # so the same rule applies to the x tick as to the legend key.
+              x = level_label(x_name),
               y = y_val,
               z = as.character(fill_label)
             )
@@ -220,7 +457,59 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
         })
       }
     },
-    generate_selectors = function(plot, gt = NULL) {
+    # ONE flat CSS selector matching every rect in the layer is the contract
+    # maidr.js expects for segmented bars. It is deliberate, not an oversight:
+    # do not "fix" it by emitting one selector per series.
+    #
+    # In the bundled frontend (inst/htmlwidgets/lib/maidr-*/maidr.js) the
+    # stacked, dodged and normalized trace types are all built by the same
+    # class:
+    #
+    #   case DODGED: case NORMALIZED: case STACKED: return new <Segmented>(layer)
+    #
+    # Its constructor runs `this.highlightValues = this.mapToSvgElements(
+    # layer.selectors)`, and `selectAllElements` is just
+    # `Array.from(document.querySelectorAll(sel))` - one flat node list in SVG
+    # document order. The class then RE-GROUPS that list itself instead of
+    # zipping it against the flattened payload (de-minified, rect branch):
+    #
+    #   if (domMapping?.order !== "column")
+    #     for (let s = 0; s < barValues.length; s++)
+    #       for (let col = 0; col < barValues[s].length; col++) out[s][col] = nodes[k++];
+    #   else
+    #     for (let col = 0; col < barValues[0].length; col++)
+    #       if (domMapping?.groupDirection === "forward")
+    #         for (let s = 0; s < barValues.length; s++)      out[s][col] = nodes[k++];
+    #       else
+    #         for (let s = barValues.length - 1; s >= 0; s--) out[s][col] = nodes[k++];
+    #
+    # So the DOM walk is X-MAJOR (one whole column at a time) while `data`
+    # stays SERIES-MAJOR -- once the layer says `order = "column"`, which
+    # this one does. maidr.js 3.x walked every `<rect>` layer that way by
+    # default; 4.0 pairs a layer that says nothing series by series, which
+    # handed every segment after the first to the wrong cell (#316). The
+    # per-column direction is left at its default, "reverse": the first rect
+    # of a column is handed to the LAST data series, the last rect to the
+    # first series.
+    #
+    # That is why flattening `data` and lining it up against document order
+    # looks wrong - the frontend never does that. Concretely, for x = a,b,c
+    # and fills u = 10,20,30 / v = 55,65,75, the emitted flattening is
+    # 55,65,75,10,20,30 while the rects come out 10,55,20,65,30,75; the
+    # regrouping above reunites data[0] = v with the v rects.
+    #
+    # Pinned by tests/testthat/test-segmented-bar-selector-contract.R.
+    #' @description One flat selector matching every rect in the layer, which is the contract the
+    #'   frontend expects (see the note above)
+    #' @param plot The ggplot2 object
+    #' @param gt Gtable object (optional)
+    #' @param panel_ctx Panel context for panel-scoped selector generation (optional)
+    #' @return List holding one selector
+    generate_selectors = function(plot, gt = NULL, panel_ctx = NULL) {
+      if (is.null(gt)) {
+        return(list())
+      }
+
       find_rect_grobs <- function(grob) {
         if (!is.null(grob$name) && grepl("geom_rect\\.rect", grob$name)) {
           return(grob$name)
@@ -237,30 +526,38 @@ Ggplot2StackedBarProcessor <- R6::R6Class(
         NULL
       }
 
-      if (!is.null(gt)) {
-        rect_grob <- NULL
+      rect_grob <- NULL
 
-        if ("grobs" %in% names(gt)) {
-          for (grob in gt$grobs) {
-            rect_grob <- find_rect_grobs(grob)
-            if (!is.null(rect_grob)) break
-          }
+      if (!is.null(panel_ctx) && !is.null(panel_ctx$panel_name)) {
+        # Facet / patchwork path: scope the search to this panel's grob
+        panel_grob <- find_gtable_panel_grob(gt, panel_ctx)
+        if (!is.null(panel_grob)) {
+          rect_grob <- find_rect_grobs(panel_grob)
         }
-
-        if (!is.null(rect_grob)) {
-          layer_id <- gsub("geom_rect\\.rect\\.", "", rect_grob)
-          grob_id <- paste0("geom_rect.rect.", layer_id, ".1")
-          escaped_grob_id <- gsub("\\.", "\\\\.", grob_id)
-          selector_string <- paste0("#", escaped_grob_id, " rect")
-        } else {
-          layer_id <- self$get_layer_index()
-          grob_id <- paste0("geom_rect.rect.", layer_id, ".1")
-          escaped_grob_id <- gsub("\\.", "\\\\.", grob_id)
-          selector_string <- paste0("#", escaped_grob_id, " rect")
+      } else if ("grobs" %in% names(gt)) {
+        for (grob in gt$grobs) {
+          rect_grob <- find_rect_grobs(grob)
+          if (!is.null(rect_grob)) break
         }
       }
 
-      list(selector_string)
+      # No rect grob means this layer drew no segments here: an empty facet
+      # level, a zero-row layer, a coord that renders no rects. The layer
+      # INDEX is not the grob id - every `geom_rect.rect.N` id carries
+      # grid's session-wide grob counter - so the guess is right only by
+      # coincidence, and when it does land it lands on ANOTHER panel's
+      # segments, which highlights the wrong marks while the payload still
+      # looks healthy. The caller can tell an empty selector list apart
+      # from a wrong one, a user cannot.
+      if (is.null(rect_grob)) {
+        return(list())
+      }
+
+      layer_id <- gsub("geom_rect\\.rect\\.", "", rect_grob)
+      grob_id <- paste0("geom_rect.rect.", layer_id, ".1")
+      escaped_grob_id <- gsub("\\.", "\\\\.", grob_id)
+
+      list(paste0("#", escaped_grob_id, " rect"))
     }
   )
 )

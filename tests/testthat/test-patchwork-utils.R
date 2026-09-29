@@ -157,6 +157,76 @@ test_that("extract_leaf_plot_layout returns empty string for missing title", {
   testthat::expect_equal(result$title, "")
 })
 
+test_that("extract_leaf_plot_layout reads stat-computed labels off the build", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  # geom_bar() computes y, so nothing in the unbuilt plot names that axis:
+  # ggplot2 v4 only resolves the default "count" while building. Without the
+  # built labels the leaf reports an empty y label and MAIDR announces the
+  # placeholder "Y".
+  p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) +
+    ggplot2::geom_bar()
+
+  result <- maidr:::extract_leaf_plot_layout(p, ggplot2::ggplot_build(p))
+
+  testthat::expect_equal(result$axes$x$label, "class")
+  testthat::expect_equal(result$axes$y$label, "count")
+})
+
+test_that("extract_leaf_plot_layout still works without a build", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  p <- ggplot2::ggplot(mtcars, ggplot2::aes(x = mpg, y = wt)) +
+    ggplot2::geom_point() +
+    ggplot2::labs(x = "X Label")
+
+  result <- maidr:::extract_leaf_plot_layout(p, NULL)
+
+  testthat::expect_equal(result$axes$x$label, "X Label")
+  testthat::expect_equal(result$axes$y$label, "wt")
+})
+
+test_that("a patchwork bar panel carries its stat-computed y label", {
+  testthat::skip_if_not_installed("patchwork")
+  testthat::skip_if_not_installed("jsonlite")
+
+  composition <- patchwork::wrap_plots(
+    ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar(),
+    ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) + ggplot2::geom_point()
+  )
+
+  file <- tempfile(fileext = ".html")
+
+  on.exit(unlink(file), add = TRUE)
+  suppressWarnings(save_html(composition, file))
+  html <- paste(readLines(file, warn = FALSE), collapse = "\n")
+
+  raw <- regmatches(
+    html, gregexpr('maidr-data="([^"]*)"', html, perl = TRUE)
+  )[[1]]
+  testthat::expect_gt(length(raw), 0)
+
+  json <- sub('"$', "", sub('^maidr-data="', "", raw[1]))
+  json <- gsub("&quot;", '"', json, fixed = TRUE)
+  json <- gsub("&lt;", "<", json, fixed = TRUE)
+  json <- gsub("&gt;", ">", json, fixed = TRUE)
+  json <- gsub("&amp;", "&", json, fixed = TRUE)
+  payload <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+
+  bar <- NULL
+  for (row in payload$subplots) {
+    for (subplot in row) {
+      for (layer in subplot$layers) {
+        if (identical(layer$type, "bar")) bar <- layer
+      }
+    }
+  }
+
+  testthat::expect_false(is.null(bar))
+  testthat::expect_equal(bar$axes$x$label, "class")
+  testthat::expect_equal(bar$axes$y$label, "count")
+})
+
 # ==============================================================================
 # process_patchwork_plot_data Tests
 # ==============================================================================
@@ -255,12 +325,6 @@ test_that("process_patchwork_panel generates unique id", {
   testthat::expect_true(grepl("^maidr-subplot-", result2$id))
 })
 
-test_that("process_patchwork_panel processes layers", {
-  # This test requires full system integration - skip in unit tests
-  # The function is tested implicitly through the patchwork integration tests
-  testthat::skip("Requires full system integration")
-})
-
 # ==============================================================================
 # Edge Cases
 # ==============================================================================
@@ -344,4 +408,531 @@ test_that("Patchwork processing pipeline works end-to-end", {
     layout <- maidr:::extract_leaf_plot_layout(leaf)
     testthat::expect_type(layout, "list")
   }
+})
+
+# ==============================================================================
+# Shared panel collector (issue #52)
+# ==============================================================================
+
+test_that("collect_gtable_panels finds nested panels in discovery order", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  p1 <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  p2 <- ggplot2::ggplot(mtcars, ggplot2::aes(hp, mpg)) + ggplot2::geom_point()
+  p3 <- ggplot2::ggplot(mtcars, ggplot2::aes(wt, hp)) + ggplot2::geom_point()
+
+  gt <- patchwork::patchworkGrob((p1 | p2) / p3)
+  panels <- maidr:::collect_gtable_panels(gt)
+  panels <- Filter(function(p) grepl("^panel-\\d+(-\\d+)?$", p$name), panels)
+
+  # Nested rows hide their panels inside a child gtable; a top-level scan
+  # would find only the last leaf.
+  testthat::expect_equal(length(panels), 3)
+
+  # The order must match find_patchwork_panels(), which is how leaves are
+  # paired with panels.
+  df <- maidr:::find_patchwork_panels(gt)
+  testthat::expect_equal(
+    vapply(panels, function(p) p$name, character(1)),
+    as.character(df$name)
+  )
+
+  # Panels reached through a child gtable carry the full viewport path
+  depths <- vapply(panels, function(p) length(p$vp_path), integer(1))
+  testthat::expect_true(any(depths > 1))
+})
+
+test_that("collect_gtable_panels matches the bare panel of a single plot", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  gt <- ggplot2::ggplotGrob(
+    ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  )
+  panels <- maidr:::collect_gtable_panels(gt)
+
+  testthat::expect_equal(length(panels), 1)
+  testthat::expect_equal(panels[[1]]$name, "panel")
+})
+
+test_that("find_gtable_panel_grob resolves each patchwork leaf's own panel", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  bars <- ggplot2::ggplot(mtcars, ggplot2::aes(factor(cyl))) + ggplot2::geom_bar()
+  points <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+
+  gt <- patchwork::patchworkGrob(bars | points)
+
+  geoms_in <- function(grob) {
+    names <- character(0)
+    walk <- function(g) {
+      if (!inherits(g, "gTree") || is.null(g$children)) {
+        return(invisible(NULL))
+      }
+      for (nm in names(g$children)) {
+        child <- g$children[[nm]]
+        if (!is.null(child$name)) names <<- c(names, child$name)
+        walk(child)
+      }
+    }
+    walk(grob)
+    names
+  }
+
+  first <- maidr:::find_gtable_panel_grob(gt, list(panel_index = 1, panel_name = "panel-1"))
+  second <- maidr:::find_gtable_panel_grob(gt, list(panel_index = 2, panel_name = "panel-2"))
+
+  testthat::expect_true(any(grepl("geom_rect|geom_bar", geoms_in(first))))
+  testthat::expect_true(any(grepl("geom_point", geoms_in(second))))
+  testthat::expect_false(any(grepl("geom_point", geoms_in(first))))
+})
+
+test_that("find_gtable_panel_grob without a context keeps single-plot behaviour", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  gt <- ggplot2::ggplotGrob(
+    ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  )
+  testthat::expect_false(is.null(maidr:::find_gtable_panel_grob(gt)))
+
+  # A patchwork gtable has no cell named "panel" at all
+  testthat::skip_if_not_installed("patchwork")
+  pw <- patchwork::patchworkGrob(
+    (ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()) |
+      (ggplot2::ggplot(mtcars, ggplot2::aes(hp, mpg)) + ggplot2::geom_point())
+  )
+  testthat::expect_null(maidr:::find_gtable_panel_grob(pw))
+})
+
+# ==============================================================================
+# Leaf augmentation (issue #52)
+# ==============================================================================
+
+test_that("augment_patchwork_leaves injects violin's boxplot into every leaf", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  violin <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+
+  composition <- violin | bars
+  augmented <- maidr:::augment_patchwork_leaves(composition)
+
+  leaves <- maidr:::extract_patchwork_leaves(augmented)
+  testthat::expect_equal(length(leaves[[1]]$layers), 2)
+  testthat::expect_equal(length(leaves[[2]]$layers), 1)
+
+  # The caller's object must not be mutated
+  original <- maidr:::extract_patchwork_leaves(composition)
+  testthat::expect_equal(length(original[[1]]$layers), 1)
+})
+
+test_that("augment_patchwork_leaves reaches the self-carried leaf and nests", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  violin <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+
+  # The last-added plot is carried by the patchwork object itself
+  augmented <- maidr:::augment_patchwork_leaves(bars | violin)
+  leaves <- maidr:::extract_patchwork_leaves(augmented)
+  testthat::expect_equal(length(leaves[[2]]$layers), 2)
+
+  # And nesting must be traversed
+  points <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+    ggplot2::geom_point()
+  nested <- maidr:::augment_patchwork_leaves((violin | bars) / points)
+  nested_leaves <- maidr:::extract_patchwork_leaves(nested)
+  testthat::expect_equal(length(nested_leaves[[1]]$layers), 2)
+  testthat::expect_equal(length(nested_leaves[[3]]$layers), 1)
+})
+
+test_that("augment_leaf_plot leaves plots that need no augmentation alone", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+  testthat::expect_equal(length(maidr:::augment_leaf_plot(bars)$layers), 1)
+})
+
+# ==============================================================================
+# Multi-layer expansion in process_patchwork_panel (issue #52)
+# ==============================================================================
+
+test_that("process_patchwork_panel leaves a single-layer id un-expanded", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  p1 <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  p2 <- ggplot2::ggplot(mtcars, ggplot2::aes(hp, mpg)) + ggplot2::geom_point()
+  gt <- patchwork::patchworkGrob(p1 | p2)
+
+  panel <- maidr:::process_patchwork_panel(
+    p1, "panel-1", 1, 1, 1, list(title = "", axes = list()), gt
+  )
+
+  testthat::expect_equal(length(panel$layers), 1)
+  # <row>-<col>-<layer>: the cell qualifies the id, no multi-layer suffix
+  testthat::expect_equal(panel$layers[[1]]$id, "maidr-layer-1-1-1")
+})
+
+test_that("process_patchwork_panel expands a violin into two suffixed layers", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  violin <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+
+  augmented <- maidr:::augment_patchwork_leaves(violin | bars)
+  gt <- patchwork::patchworkGrob(augmented)
+  leaf <- maidr:::extract_patchwork_leaves(augmented)[[1]]
+
+  panel <- maidr:::process_patchwork_panel(
+    leaf, "panel-1", 1, 1, 1, list(title = "", axes = list()), gt,
+    n_original_layers = 1
+  )
+
+  testthat::expect_equal(length(panel$layers), 2)
+  testthat::expect_equal(
+    vapply(panel$layers, function(l) l$type, character(1)),
+    c("violin_box", "violin_kde")
+  )
+  testthat::expect_equal(
+    vapply(panel$layers, function(l) l$id, character(1)),
+    c("maidr-layer-1-1-1-1", "maidr-layer-1-1-1-2")
+  )
+  # Fields beyond the standard set survive the expansion
+  testthat::expect_equal(panel$layers[[1]]$orientation, "vert")
+})
+
+test_that("process_patchwork_panel ignores geoms injected for rendering", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  violin <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+
+  augmented <- maidr:::augment_patchwork_leaves(violin | bars)
+  gt <- patchwork::patchworkGrob(augmented)
+  leaf <- maidr:::extract_patchwork_leaves(augmented)[[1]]
+
+  # Without the original layer count the injected boxplot emits a third,
+  # spurious "box" layer the user never asked for.
+  bounded <- maidr:::process_patchwork_panel(
+    leaf, "panel-1", 1, 1, 1, list(title = "", axes = list()), gt,
+    n_original_layers = 1
+  )
+  testthat::expect_false("box" %in% vapply(bounded$layers, function(l) l$type, character(1)))
+})
+
+test_that("augment_patchwork_leaves leaves faceted leaves visually untouched", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  faceted <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin() +
+    ggplot2::facet_wrap(~drv)
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+
+  # A faceted violin is skipped by the processor, so injecting a boxplot into
+  # it would change the drawn figure and buy no accessibility at all.
+  for (composition in list(faceted | bars, bars | faceted)) {
+    leaves <- maidr:::extract_patchwork_leaves(
+      maidr:::augment_patchwork_leaves(composition)
+    )
+    testthat::expect_equal(
+      vapply(leaves, function(l) length(l$layers), integer(1)),
+      c(1L, 1L)
+    )
+  }
+})
+
+test_that("count_leaf_panels counts a leaf's own panels", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  plain <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+  testthat::expect_equal(maidr:::count_leaf_panels(plain), 1L)
+  testthat::expect_equal(
+    maidr:::count_leaf_panels(plain + ggplot2::facet_wrap(~drv)),
+    length(unique(ggplot2::mpg$drv))
+  )
+  testthat::expect_equal(maidr:::count_leaf_panels("not a plot"), 1L)
+})
+
+test_that("count_leaf_panels reports zero for a plot patchwork has wrapped", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  plain <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+
+  # A wrapped plot lands in a cell panel discovery does not recognise, so it
+  # contributes no row to find_patchwork_panels(). Counting it as one would
+  # make every later leaf consume somebody else's panel.
+  testthat::expect_false(maidr:::is_wrapped_leaf(plain))
+  for (wrapped in list(
+    patchwork::free(plain),
+    patchwork::inset_element(plain, 0.5, 0.5, 1, 1),
+    patchwork::wrap_elements(full = plain)
+  )) {
+    testthat::expect_true(maidr:::is_wrapped_leaf(wrapped))
+    testthat::expect_equal(maidr:::count_leaf_panels(wrapped), 0L)
+  }
+})
+
+test_that("augment_patchwork_leaves leaves wrapped plots untouched", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  violin <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class, hwy)) +
+    ggplot2::geom_violin()
+  bars <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(class)) + ggplot2::geom_bar()
+
+  # A wrapped plot occupies no cell panel discovery recognises, so it is
+  # never described -- injecting a boxplot into it would only change the
+  # drawn figure.
+  wrapped <- list(
+    inset = bars + patchwork::inset_element(violin, 0.5, 0.5, 1, 1),
+    free = bars | patchwork::free(violin)
+  )
+  for (composition in wrapped) {
+    leaves <- maidr:::extract_patchwork_leaves(
+      maidr:::augment_patchwork_leaves(composition)
+    )
+    for (leaf in leaves) {
+      testthat::expect_equal(length(leaf$layers), 1)
+    }
+  }
+
+  # An ordinary violin leaf is still augmented
+  plain <- maidr:::extract_patchwork_leaves(
+    maidr:::augment_patchwork_leaves(violin | bars)
+  )
+  testthat::expect_equal(length(plain[[1]]$layers), 2)
+})
+
+test_that("find_gtable_panel_grob declines rather than guessing a panel", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  bars <- ggplot2::ggplot(mtcars, ggplot2::aes(factor(cyl))) + ggplot2::geom_bar()
+  points <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  gt <- patchwork::patchworkGrob(bars | points)
+
+  # An index that resolves to nothing and a name that matches nothing must
+  # not fall through to the first panel: handing a layer another panel's
+  # grobs points its highlighting at the wrong chart.
+  testthat::expect_null(
+    maidr:::find_gtable_panel_grob(gt, list(panel_index = 99, panel_name = "panel-99"))
+  )
+  testthat::expect_null(
+    maidr:::find_gtable_panel_grob(gt, list(panel_index = NA_integer_))
+  )
+  testthat::expect_null(
+    maidr:::find_gtable_panel_grob(gt, list(panel_index = c(1, 2)))
+  )
+
+  # A resolvable context still works
+  testthat::expect_false(
+    is.null(maidr:::find_gtable_panel_grob(gt, list(panel_index = 2)))
+  )
+})
+
+# ==============================================================================
+# Layer ids are unique across the whole figure (issue #66)
+# ==============================================================================
+
+# The frontend builds one number-format map per FIGURE, keyed on the bare
+# layer id, and every trace looks its formatter up by that id. Ids that repeat
+# across subplots collide there -- last leaf wins -- so uniqueness has to hold
+# over the composition, not just within a panel.
+test_that("no two layers of a composition share an id", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  bars <- ggplot2::ggplot(mtcars, ggplot2::aes(factor(cyl))) + ggplot2::geom_bar()
+  points <- ggplot2::ggplot(mtcars, ggplot2::aes(wt, mpg)) + ggplot2::geom_point()
+  composition <- (bars | points) / (points | bars)
+
+  grid <- maidr:::process_patchwork_plot_data(
+    composition,
+    list(title = "", axes = list()),
+    patchwork::patchworkGrob(composition)
+  )
+
+  ids <- unlist(lapply(grid, function(row) {
+    unlist(lapply(row, function(cell) {
+      vapply(cell$layers, function(l) as.character(l$id), character(1))
+    }))
+  }))
+
+  testthat::expect_equal(length(ids), 4L)
+  testthat::expect_equal(length(unique(ids)), length(ids))
+  testthat::expect_equal(
+    sort(ids),
+    c(
+      "maidr-layer-1-1-1", "maidr-layer-1-2-1",
+      "maidr-layer-2-1-1", "maidr-layer-2-2-1"
+    )
+  )
+})
+
+# merge_candlestick_volume_panels() lifts the layers of a stacked 2x1
+# composition out of their two panels and into one subplot. Panels that
+# numbered their layers from 1 handed that subplot two layers both called
+# "maidr-layer-1" -- a collision between siblings, not merely across
+# subplots, which even a subplot-scoped lookup resolves to the wrong layer.
+test_that("stacked panels contribute ids that survive being merged", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  price <- ggplot2::ggplot(mtcars, ggplot2::aes(wt, mpg)) + ggplot2::geom_line()
+  volume <- ggplot2::ggplot(mtcars, ggplot2::aes(factor(cyl))) + ggplot2::geom_bar()
+  stacked <- price / volume
+
+  grid <- maidr:::process_patchwork_plot_data(
+    stacked,
+    list(title = "", axes = list()),
+    patchwork::patchworkGrob(stacked)
+  )
+
+  top_ids <- vapply(grid[[1]][[1]]$layers, function(l) as.character(l$id), character(1))
+  bottom_ids <- vapply(grid[[2]][[1]]$layers, function(l) as.character(l$id), character(1))
+
+  testthat::expect_length(top_ids, 1L)
+  testthat::expect_length(bottom_ids, 1L)
+  testthat::expect_length(intersect(top_ids, bottom_ids), 0L)
+})
+
+# ==============================================================================
+# Axis number formatting on patchwork leaves (issue #66)
+# ==============================================================================
+
+test_that("a patchwork leaf keeps the axis format of its own scales", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+  testthat::skip_if_not_installed("scales")
+
+  df <- data.frame(g = c("a", "b", "c"), v = c(10, 20, 30))
+  money <- ggplot2::ggplot(df, ggplot2::aes(g, v)) +
+    ggplot2::geom_col() +
+    ggplot2::scale_y_continuous(labels = scales::label_dollar()) +
+    ggplot2::labs(x = "Group", y = "Revenue")
+  plain <- ggplot2::ggplot(df, ggplot2::aes(g, v)) + ggplot2::geom_col()
+
+  gt <- patchwork::patchworkGrob(money | plain)
+  panel <- maidr:::process_patchwork_panel(
+    money, "panel-1", 1, 1, 1, list(title = "", axes = list()), gt
+  )
+
+  testthat::expect_equal(
+    panel$layers[[1]]$axes$y$format,
+    list(type = "currency", currency = "USD", decimals = 2L, locale = "en-US")
+  )
+  testthat::expect_null(panel$layers[[1]]$axes$x$format)
+})
+
+test_that("each patchwork leaf gets its own format, not the composition's", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+  testthat::skip_if_not_installed("scales")
+
+  df <- data.frame(g = c("a", "b", "c"), v = c(10, 20, 30))
+  money <- ggplot2::ggplot(df, ggplot2::aes(g, v)) +
+    ggplot2::geom_col() +
+    ggplot2::scale_y_continuous(labels = scales::label_dollar())
+  share <- ggplot2::ggplot(df, ggplot2::aes(g, v / 100)) +
+    ggplot2::geom_col() +
+    ggplot2::scale_y_continuous(labels = scales::label_percent())
+
+  grid <- maidr:::process_patchwork_plot_data(
+    money | share,
+    list(title = "", axes = list()),
+    patchwork::patchworkGrob(money | share)
+  )
+
+  testthat::expect_equal(
+    grid[[1]][[1]]$layers[[1]]$axes$y$format$type, "currency"
+  )
+  testthat::expect_equal(
+    grid[[1]][[2]]$layers[[1]]$axes$y$format$type, "percent"
+  )
+})
+
+test_that("a patchwork leaf's axes match the same plot rendered standalone", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+  testthat::skip_if_not_installed("scales")
+
+  df <- data.frame(g = c("a", "b", "c"), v = c(10, 20, 30))
+  money <- ggplot2::ggplot(df, ggplot2::aes(g, v)) +
+    ggplot2::geom_col() +
+    ggplot2::scale_y_continuous(labels = scales::label_dollar()) +
+    ggplot2::labs(x = "Group", y = "Revenue")
+
+  standalone <- maidr:::Ggplot2PlotOrchestrator$new(money)
+  solo_axes <- standalone$get_combined_data()[[1]][[1]]$layers[[1]]$axes
+
+  gt <- patchwork::patchworkGrob(money | money)
+  panel <- maidr:::process_patchwork_panel(
+    money, "panel-1", 1, 1, 1, list(title = "", axes = list()), gt
+  )
+
+  testthat::expect_equal(panel$layers[[1]]$axes, solo_axes)
+})
+
+# Attaching the format put a validate_axes() gate on the patchwork path that
+# was not there before. Unformatted leaves go through it too, so this pins
+# that the gate lets an ordinary composition past rather than aborting it --
+# the failure mode a new throw introduces. It deliberately uses plain scales:
+# the formatted cases are covered above.
+test_that("the axes gate passes every leaf of an unformatted composition", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  bars <- ggplot2::ggplot(mtcars, ggplot2::aes(factor(cyl))) + ggplot2::geom_bar()
+  points <- ggplot2::ggplot(mtcars, ggplot2::aes(wt, mpg)) + ggplot2::geom_point()
+
+  grid <- maidr:::process_patchwork_plot_data(
+    bars | points,
+    list(title = "", axes = list()),
+    patchwork::patchworkGrob(bars | points)
+  )
+
+  for (row in grid) {
+    for (cell in row) {
+      for (layer in cell$layers) {
+        testthat::expect_true(all(names(layer$axes) %in% c("x", "y", "z")))
+        testthat::expect_silent(maidr:::validate_axes(layer$axes))
+      }
+    }
+  }
+})
+
+
+test_that("a horizontal bar leaf keeps its orientation", {
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("patchwork")
+
+  # The leaf entry is rebuilt field by field, and the carry of the
+  # processor's remaining fields was restricted to expanded (violin)
+  # results, so a horizontal bar leaf lost `orientation` and a dodged count
+  # leaf lost the `domMapping` it highlights by.
+  df <- data.frame(g = c("a", "b"), n = c(1, 2))
+  horizontal <- ggplot2::ggplot(df, ggplot2::aes(y = g, x = n)) +
+    ggplot2::geom_col()
+  other <- ggplot2::ggplot(df, ggplot2::aes(g, n)) +
+    ggplot2::geom_col()
+
+  data <- maidr:::Ggplot2PlotOrchestrator$new(horizontal + other)$generate_maidr_data()
+  leaf <- data$subplots[[1]][[1]]$layers[[1]]
+
+  testthat::expect_identical(leaf$type, "bar")
+  testthat::expect_identical(leaf$orientation, "horz")
 })

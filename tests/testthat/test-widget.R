@@ -78,11 +78,6 @@ test_that("maidr_widget() accepts element_id parameter", {
 
 test_that("maidr_widget() errors for non-ggplot objects", {
   testthat::expect_error(
-    maidr_widget(plot = NULL),
-    "Input must be a ggplot object"
-  )
-
-  testthat::expect_error(
     maidr_widget(plot = 42),
     "Input must be a ggplot object"
   )
@@ -90,6 +85,17 @@ test_that("maidr_widget() errors for non-ggplot objects", {
   testthat::expect_error(
     maidr_widget(plot = list(a = 1)),
     "Input must be a ggplot object"
+  )
+})
+
+test_that("maidr_widget(NULL) requires recorded Base R plots", {
+  # NULL now means Base R auto-detection (mirroring show()); without any
+  # recorded plot calls it must fail with a clear message.
+  maidr:::clear_all_device_storage()
+
+  testthat::expect_error(
+    maidr_widget(plot = NULL),
+    "No Base R plots detected"
   )
 })
 
@@ -231,19 +237,41 @@ test_that("widget has sizing policy", {
   testthat::expect_type(widget$sizingPolicy, "list")
 })
 
-test_that("widget iframe uses data URL with embedded content", {
+test_that("widget iframe carries its content in srcdoc, not a data URL", {
   testthat::skip_if_not_installed("ggplot2")
 
   p <- create_test_ggplot_bar()
   widget <- maidr_widget(p)
 
-  # With iframe-based approach, CSS and JS are bundled inside a base64-encoded data URL
-
   iframe_content <- widget$x$iframe_content
 
-  # The iframe content should be an iframe tag with data URL src
+  # `srcdoc` rather than `data:`, because a `data:` document has an opaque
+  # origin and Web Bluetooth and Web Serial are unavailable to one whatever
+  # the `allow` attribute says --- so a Dot Pad could not be connected from an
+  # R chart at all. Measured in Chromium: a `data:` frame carrying
+  # `allow="serial"` reports the feature allowed and still has no
+  # `navigator.serial`; a `srcdoc` frame has it.
   testthat::expect_match(iframe_content, "<iframe", fixed = TRUE)
-  testthat::expect_match(iframe_content, "src=\"data:text/html;base64,", fixed = TRUE)
+  testthat::expect_match(iframe_content, "srcdoc=\"", fixed = TRUE)
+  testthat::expect_false(grepl("data:text/html", iframe_content, fixed = TRUE))
+})
+
+test_that("widget iframe delegates bluetooth and serial", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  p <- create_test_ggplot_bar()
+  widget <- maidr_widget(p)
+
+  # Inheritance covers the same-origin case on its own; `allow` is what
+  # carries the features into a chart that is itself inside a cross-origin
+  # frame. It delegates rather than creates: a frame cannot receive a feature
+  # the embedding page lacks, and the browser still asks the reader to pick
+  # the device.
+  testthat::expect_match(
+    widget$x$iframe_content,
+    'allow="bluetooth; serial"',
+    fixed = TRUE
+  )
 })
 
 # ==============================================================================
@@ -341,4 +369,159 @@ test_that("widget works with dodged bar plots", {
   widget <- maidr_widget(p)
 
   expect_valid_maidr_widget(widget)
+})
+
+# ==============================================================================
+# Non-ASCII labels survive the trip into the frame
+#
+# They did not before. `enc2utf8()` on an unmarked string assumes the native
+# encoding, and under a C locale — a container, a CI runner, plenty of servers
+# — it cannot represent the bytes it finds and rewrites each one as the text
+# `<ed>`, `<95>`, `<9c>`. A Korean title reached the reader as that, and it did
+# so through the base64 encoding `srcdoc` replaced as well.
+# ==============================================================================
+
+test_that("a non-ASCII title reaches the frame intact", {
+  title <- "éü 한글"
+  svg <- paste0(
+    '<svg xmlns="http://www.w3.org/2000/svg" maidr-data=\'{"id":"x","title":"',
+    title, '"}\'><rect/></svg>'
+  )
+
+  iframe <- maidr:::create_maidr_iframe(svg, use_cdn = TRUE, plot_id = "enc")
+
+  # It travels as character references, so the page holds only ASCII and no
+  # locale downstream can rewrite it; the parser hands the frame the title.
+  testthat::expect_true(grepl("&#xE9;&#xFC; &#xD55C;&#xAE00;", iframe, fixed = TRUE))
+  testthat::expect_false(grepl("&lt;ed&gt;", iframe, fixed = TRUE))
+
+  srcdoc <- xml2::xml_attr(
+    xml2::xml_find_first(xml2::read_html(iframe, encoding = "UTF-8"), "//iframe"),
+    "srcdoc"
+  )
+  testthat::expect_true(grepl(enc2utf8(title), srcdoc, fixed = TRUE))
+})
+
+test_that("attribute-significant characters in a label are escaped, not dropped", {
+  svg <- paste0(
+    '<svg xmlns="http://www.w3.org/2000/svg" maidr-data=\'{"id":"x",',
+    '"title":"A &amp; B"}\'><rect/></svg>'
+  )
+
+  iframe <- maidr:::create_maidr_iframe(svg, use_cdn = TRUE, plot_id = "esc")
+
+  # A raw quote would end the attribute and spill the rest of the document
+  # into the page as markup.
+  testthat::expect_match(iframe, "&quot;", fixed = TRUE)
+  testthat::expect_match(iframe, "&lt;rect/&gt;", fixed = TRUE)
+})
+
+test_that("only a widget whose frame loads from the CDN carries the page's copy", {
+  testthat::skip_if_not_installed("ggplot2")
+  page_bundles <- function(widget) {
+    Filter(function(d) identical(d$name, "maidr-page-bundle"), widget$dependencies)
+  }
+
+  # The frame's `<script src>` sits inside `srcdoc`, out of reach of R
+  # Markdown's `self_contained` and Quarto's `embed-resources`; the page's
+  # copy, declared on the widget, is what they embed.
+  online <- maidr_widget(create_test_ggplot_bar(), use_cdn = TRUE)
+  testthat::expect_true(grepl("s.onerror = fromPage;", online$x$iframe_content, fixed = TRUE))
+  testthat::expect_length(page_bundles(online), 1)
+  testthat::expect_identical(
+    page_bundles(online)[[1]]$script,
+    maidr:::maidr_page_bundle_dependency()$script
+  )
+
+  # Offline the bundle travels in the frame, which never reads the page, so
+  # the page carries no copy of it.
+  offline <- maidr_widget(create_test_ggplot_bar(), use_cdn = FALSE)
+  testthat::expect_false(grepl("fromPage", offline$x$iframe_content, fixed = TRUE))
+  testthat::expect_length(page_bundles(offline), 0)
+})
+
+test_that("an unset use_cdn decides the frame and the page's copy together", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  for (online in c(TRUE, FALSE)) {
+    testthat::local_mocked_bindings(
+      maidr_internet_available = function() online,
+      .package = "maidr"
+    )
+    widget <- maidr_widget(create_test_ggplot_bar())
+    carries_copy <- any(vapply(
+      widget$dependencies,
+      function(d) identical(d$name, "maidr-page-bundle"),
+      logical(1)
+    ))
+    testthat::expect_identical(carries_copy, online)
+    testthat::expect_identical(
+      grepl("fromPage", widget$x$iframe_content, fixed = TRUE),
+      online
+    )
+  }
+})
+
+# Renders a self-contained R Markdown document holding two widgets, drawn with
+# `use_cdn` as given, and answers the HTML it wrote.
+render_widget_document <- function(use_cdn) {
+  testthat::skip_on_cran()
+  testthat::skip_if_not_installed("ggplot2")
+  testthat::skip_if_not_installed("rmarkdown")
+  testthat::skip_if_not(rmarkdown::pandoc_available("2.0"), "pandoc is not available")
+
+  dir <- tempfile("maidr-widget-rmd-")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  rmd <- file.path(dir, "widgets.Rmd")
+  show_call <- sprintf("maidr::show(p, as_widget = TRUE, use_cdn = %s)", use_cdn)
+  writeLines(c(
+    "---",
+    "title: widgets",
+    "output:",
+    "  html_document:",
+    "    self_contained: true",
+    "---",
+    "```{r, echo = FALSE}",
+    "library(ggplot2)",
+    "p <- ggplot(mtcars, aes(factor(cyl))) + geom_bar()",
+    show_call,
+    show_call,
+    "```"
+  ), rmd)
+
+  out <- rmarkdown::render(rmd, quiet = TRUE, envir = new.env())
+  testthat::expect_false(dir.exists(file.path(dir, "widgets_files")))
+  paste(readLines(out, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+}
+
+count_matches <- function(pattern, html, fixed = FALSE) {
+  lengths(regmatches(html, gregexpr(pattern, html, fixed = fixed)))
+}
+
+page_copy_pattern <- function() {
+  sprintf('<script[^>]*type="%s"', maidr:::MAIDR_PAGE_JS_TYPE)
+}
+
+bundle_head <- function() {
+  substr(readLines(maidr:::maidr_local_assets()$js, n = 1L, warn = FALSE), 1L, 200L)
+}
+
+test_that("a self-contained document of CDN widgets carries the bundle once", {
+  html <- render_widget_document(use_cdn = TRUE)
+
+  testthat::expect_identical(count_matches(page_copy_pattern(), html), 1L)
+  # The page's copy is the only one, and it is inert: no script the browser
+  # runs carries the bundle.
+  testthat::expect_identical(count_matches(bundle_head(), html, fixed = TRUE), 1L)
+})
+
+test_that("a self-contained document of offline widgets carries no page copy", {
+  html <- render_widget_document(use_cdn = FALSE)
+
+  # Each frame carries the bundle inline (escaped inside its `srcdoc`) and
+  # never reads the page, so the page holds no copy of its own -- neither the
+  # inert one nor, as before, one it runs.
+  testthat::expect_identical(count_matches(page_copy_pattern(), html), 0L)
+  testthat::expect_identical(count_matches(bundle_head(), html, fixed = TRUE), 0L)
 })

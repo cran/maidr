@@ -33,7 +33,7 @@ test_that("BaseRLineLayerProcessor extract_data() works with single line", {
   testthat::expect_equal(length(data), 1) # Single series
   testthat::expect_equal(length(data[[1]]), 5) # 5 points
 
-  testthat::expect_equal(data[[1]][[1]]$x, "1")
+  testthat::expect_equal(data[[1]][[1]]$x, 1)
   testthat::expect_equal(data[[1]][[1]]$y, 2)
 })
 
@@ -83,7 +83,7 @@ test_that("BaseRLineLayerProcessor process() returns correct structure", {
   processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
 
   # Process with NULL gt (skip selector generation)
-  result <- processor$process(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, layer_info)
+  result <- processor$process(NULL, NULL, NULL, NULL, NULL, NULL, NULL, layer_info)
 
   testthat::expect_type(result, "list")
   testthat::expect_equal(result$type, "line")
@@ -155,7 +155,7 @@ test_that("BaseRLineLayerProcessor handles single point line", {
   data <- processor$extract_data(layer_info)
 
   testthat::expect_equal(length(data[[1]]), 1)
-  testthat::expect_equal(data[[1]][[1]]$x, "5")
+  testthat::expect_equal(data[[1]][[1]]$x, 5)
   testthat::expect_equal(data[[1]][[1]]$y, 10)
 })
 
@@ -189,7 +189,10 @@ test_that("BaseRLineLayerProcessor extract_axis_titles() works", {
   testthat::expect_equal(axes$y$label, "Value")
 })
 
-test_that("BaseRLineLayerProcessor extract_axis_titles() handles defaults", {
+test_that("BaseRLineLayerProcessor extract_axis_titles() invents no default", {
+  # A line runs over whatever the caller measured, and the recorded call
+  # holds evaluated values that no longer name it. Both axes are omitted
+  # so the renderer applies its own generic.
   layer_info <- list(
     index = 1,
     function_name = "plot",
@@ -199,8 +202,8 @@ test_that("BaseRLineLayerProcessor extract_axis_titles() handles defaults", {
   processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
   axes <- processor$extract_axis_titles(layer_info)
 
-  testthat::expect_equal(axes$x$label, "")
-  testthat::expect_equal(axes$y$label, "")
+  testthat::expect_null(axes$x)
+  testthat::expect_null(axes$y)
 })
 
 test_that("BaseRLineLayerProcessor extract_main_title() works", {
@@ -355,7 +358,7 @@ test_that("BaseRLineLayerProcessor get_x_range_from_group() calculates with padd
   x_range <- processor$get_x_range_from_group(group)
 
   testthat::expect_length(x_range, 2)
-  # Should have padding (5% on each side)
+  # Extended 4% each way, as plot.default() extends the axis
   testthat::expect_lt(x_range[1], 10) # Min with padding < 10
   testthat::expect_gt(x_range[2], 30) # Max with padding > 30
 })
@@ -488,3 +491,75 @@ test_that("BaseRLineLayerProcessor extracts all metadata correctly", {
 })
 
 # Selector tests with grob tree skipped - tested at orchestrator level
+
+
+test_that("a lines() call with nothing in it does not fail the chart", {
+  # `for (i in 1:n)` with `n = 0` runs for `i = 1` and `i = 0`, and
+  # `data_points[[0]] <-` stops with "attempt to select less than one
+  # element" -- out of `process()`, where nothing caught it.
+  layers <- base_r_layers(function() {
+    plot(1:5)
+    lines(numeric(0))
+  })
+
+  types <- vapply(layers, function(layer) layer$type, character(1))
+  testthat::expect_true("point" %in% types)
+})
+
+test_that("plot() of a time series is read as the line it draws", {
+  # `plot.ts` defaults to `type = "l"`. Typed from `type` alone the chart
+  # was a `point` layer whose selector named a points grob that was never
+  # drawn, so nothing highlighted.
+  layer <- base_r_layers(function() plot(AirPassengers))[[1]]
+
+  testthat::expect_identical(layer$type, "line")
+  testthat::expect_length(layer$data[[1]], length(AirPassengers))
+  testthat::expect_true(all(grepl("lines-", unlist(layer$selectors), fixed = TRUE)))
+})
+
+# ==============================================================================
+# A numeric x stays a number, as the point layer beside it emits it
+# ==============================================================================
+
+base_line_layer_info <- function(x, y, function_name = "plot") {
+  list(
+    index = 1,
+    function_name = function_name,
+    plot_call = list(function_name = function_name, args = list(x, y))
+  )
+}
+
+test_that("BaseRLineLayerProcessor emits a numeric x as a number in the JSON", {
+  layer_info <- base_line_layer_info(0:2, c(1, 3, 2))
+  processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
+
+  json <- as.character(jsonlite::toJSON(
+    processor$extract_data(layer_info),
+    auto_unbox = TRUE
+  ))
+
+  testthat::expect_equal(json, '[[{"x":0,"y":1},{"x":1,"y":3},{"x":2,"y":2}]]')
+})
+
+test_that("BaseRLineLayerProcessor keeps a numeric x numeric in every series", {
+  layer_info <- base_line_layer_info(0:2, cbind(a = 1:3, b = 4:6), "matplot")
+  processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
+
+  data <- processor$extract_data(layer_info)
+  testthat::expect_length(data, 2)
+  for (series in data) {
+    testthat::expect_identical(
+      vapply(series, function(pt) pt$x, numeric(1)), c(0, 1, 2)
+    )
+  }
+})
+
+test_that("BaseRLineLayerProcessor still emits a Date x as an ISO string", {
+  layer_info <- base_line_layer_info(as.Date("2024-01-01") + 0:1, 1:2)
+  processor <- maidr:::BaseRLineLayerProcessor$new(layer_info)
+
+  data <- processor$extract_data(layer_info)
+
+  testthat::expect_identical(data[[1]][[1]]$x, "2024-01-01")
+  testthat::expect_identical(data[[1]][[2]]$x, "2024-01-02")
+})

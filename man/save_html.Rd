@@ -13,9 +13,15 @@ save_html(plot = NULL, file = "plot.html", use_cdn = NULL, ...)
 
 \item{use_cdn}{Logical. Controls where MAIDR.js is loaded from:
 \itemize{
-  \item \code{TRUE}: Use CDN (requires internet)
-  \item \code{FALSE}: Use local bundled files (works offline)
-  \item \code{NULL} (default): Auto-detect based on internet availability
+\item \code{TRUE}: Use CDN. The file is self-contained but needs
+internet access when it is viewed. It names the latest published
+MAIDR.js by version (looked up once per R session, or the bundled
+version when the lookup cannot be made); pin a version with
+\code{options(maidr.cdn_version = ...)}, see
+\code{?"maidr-options"}.
+\item \code{FALSE} or \code{NULL} (default): Use the bundled files.
+The MAIDR.js library is written to a \code{lib/} folder beside
+\code{file}, which has to travel with it.
 }}
 
 \item{...}{Additional arguments passed to internal functions}
@@ -24,8 +30,17 @@ save_html(plot = NULL, file = "plot.html", use_cdn = NULL, ...)
 The file path where the HTML was saved (invisibly)
 }
 \description{
-Save a ggplot2 or Base R plot as a standalone HTML file with interactive
-MAIDR accessibility features.
+Save a ggplot2 or Base R plot as an HTML file with interactive MAIDR
+accessibility features.
+}
+\details{
+By default the MAIDR.js library is written to a \code{lib/} folder beside
+\code{file}, and the two have to be shared together: zip the folder that
+holds both, or copy both. An \code{.html} sent on its own loads no
+MAIDR.js and shows a plain, inaccessible chart. \code{use_cdn = TRUE}
+writes one self-contained file instead, which needs internet access
+whenever it is viewed and loads the latest published MAIDR.js from
+jsDelivr rather than the copy bundled with this package.
 }
 \examples{
 # ggplot2 bar chart

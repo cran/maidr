@@ -216,6 +216,80 @@ test_that("Ggplot2Adapter detect_layer_type detects smooth plots", {
   testthat::expect_equal(layer_type, "smooth")
 })
 
+test_that("Ggplot2Adapter detect_layer_type detects step plots", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- create_test_ggplot_step()
+  layer <- p$layers[[1]]
+
+  layer_type <- adapter$detect_layer_type(layer, p)
+  testthat::expect_equal(layer_type, "step")
+})
+
+test_that("Ggplot2Adapter detect_layer_type does not confuse step with line or smooth", {
+  # GeomStep inherits GeomPath, so a detector keyed on inherits() (rather than
+  # class(...)[1]) would report "line" and the frontend would interpolate
+  # between samples that are actually piecewise constant. Detecting "unknown"
+  # is just as bad: it triggers the static-PNG fallback silently.
+  testthat::skip_if_not_installed("ggplot2")
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- create_test_ggplot_step()
+  layer_type <- adapter$detect_layer_type(p$layers[[1]], p)
+
+  testthat::expect_false(layer_type == "line")
+  testthat::expect_false(layer_type == "smooth")
+  testthat::expect_false(layer_type == "unknown")
+})
+
+test_that("Ggplot2Adapter detect_layer_type claims stat_ecdf() as a step layer", {
+  # This case used to assert the opposite, and the reason it did is still the
+  # reason the support has to do any work at all: StatEcdf returns its rows in
+  # input order (GeomStep only sorts them later, in draw_panel) and pads them
+  # with -Inf / Inf, so claiming the layer while emitting the rows as built
+  # would announce an unsorted staircase whose ends are infinite.
+  #
+  # `Ggplot2StepLayerProcessor$in_drawn_order()` undoes both before the frame
+  # is read, so the layer is now claimed rather than declined (#168), and the
+  # ECDF is announced instead of falling back to the static image. The rows
+  # this pinned are covered in test-ggplot2-ecdf.R.
+  testthat::skip_if_not_installed("ggplot2")
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- ggplot2::ggplot(data.frame(v = c(3, 1, 5, 2, 4)), ggplot2::aes(v)) +
+    ggplot2::stat_ecdf()
+
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "step")
+
+  orchestrator <- maidr:::Ggplot2PlotOrchestrator$new(p)
+  testthat::expect_false(orchestrator$should_fallback())
+})
+
+test_that("Ggplot2Adapter detect_layer_type detects step for every direction", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+
+  for (direction in c("hv", "vh", "mid")) {
+    p <- create_test_ggplot_step(direction)
+    testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "step")
+  }
+})
+
+test_that("Ggplot2Adapter still detects geom_line as line alongside geom_step", {
+  testthat::skip_if_not_installed("ggplot2")
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  df <- data.frame(x = 1:5, y = c(1, 2, 2, 4, 4))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) +
+    ggplot2::geom_line() +
+    ggplot2::geom_step()
+
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "line")
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[2]], p), "step")
+})
+
 test_that("Ggplot2Adapter detect_layer_type returns unknown for NULL", {
   adapter <- maidr:::Ggplot2Adapter$new()
 
@@ -450,6 +524,96 @@ test_that("BaseRAdapter detect_layer_type detects line plot", {
   testthat::expect_equal(layer_type, "line")
 })
 
+test_that("BaseRAdapter detect_layer_type detects step plot (type = 's')", {
+  adapter <- maidr:::BaseRAdapter$new()
+
+  layer <- list(
+    function_name = "plot",
+    args = list(1:10, rnorm(10), type = "s")
+  )
+
+  testthat::expect_equal(adapter$detect_layer_type(layer), "step")
+})
+
+test_that("BaseRAdapter detect_layer_type detects step plot (type = 'S')", {
+  adapter <- maidr:::BaseRAdapter$new()
+
+  layer <- list(
+    function_name = "plot",
+    args = list(1:10, rnorm(10), type = "S")
+  )
+
+  testthat::expect_equal(adapter$detect_layer_type(layer), "step")
+})
+
+test_that("BaseRAdapter detect_layer_type keeps type = 'l' as line", {
+  # The step branch sits ahead of the catch-all "line" mapping; make sure it
+  # only claims "s" / "S" and leaves every other non-"p" type where the
+  # branches around it put them.
+  adapter <- maidr:::BaseRAdapter$new()
+
+  layer_for <- function(plot_type) {
+    list(
+      function_name = "plot",
+      args = list(1:10, rnorm(10), type = plot_type)
+    )
+  }
+
+  for (plot_type in c("l", "o", "c")) {
+    testthat::expect_equal(adapter$detect_layer_type(layer_for(plot_type)), "line")
+  }
+
+  # "h" was in that list until #239 moved it to its own branch ahead of the
+  # step test. It draws a vertical from the baseline to each value and joins
+  # nothing to anything, so the catch-all was telling the reader the samples
+  # were connected and interpolable -- the one relationship the chart is
+  # drawn to deny. "o" and "c" stay: both draw the polyline "l" does.
+  testthat::expect_equal(adapter$detect_layer_type(layer_for("h")), "lollipop")
+
+  # "b" was in that list until #113 moved it to the points branch ahead of
+  # the step test: it draws its segments with a gap at every symbol, which
+  # gridSVG exports as "brokenline", a name the line selector cannot address,
+  # so the layer used to come out with no highlight at all. The step branch
+  # must not claim it back.
+  testthat::expect_equal(adapter$detect_layer_type(layer_for("b")), "point")
+})
+
+test_that("BaseRAdapter detect_layer_type detects lines(type = 's') as step", {
+  # The lines() branch never inspected `type` before, so a low-level stairstep
+  # overlay was silently reported as a plain line.
+  adapter <- maidr:::BaseRAdapter$new()
+
+  layer <- list(
+    function_name = "lines",
+    args = list(1:10, rnorm(10), type = "s")
+  )
+
+  testthat::expect_equal(adapter$detect_layer_type(layer), "step")
+})
+
+test_that("BaseRAdapter detect_layer_type detects lines(type = 'S') as step", {
+  adapter <- maidr:::BaseRAdapter$new()
+
+  layer <- list(
+    function_name = "lines",
+    args = list(1:10, rnorm(10), type = "S")
+  )
+
+  testthat::expect_equal(adapter$detect_layer_type(layer), "step")
+})
+
+test_that("BaseRAdapter detect_layer_type keeps density lines as smooth", {
+  # A density curve stays "smooth" even if someone passes type = "s".
+  adapter <- maidr:::BaseRAdapter$new()
+
+  layer <- list(
+    function_name = "lines",
+    args = list(stats::density(rnorm(50)), type = "s")
+  )
+
+  testthat::expect_equal(adapter$detect_layer_type(layer), "smooth")
+})
+
 test_that("BaseRAdapter detect_layer_type detects lines function", {
   adapter <- maidr:::BaseRAdapter$new()
 
@@ -503,14 +667,10 @@ test_that("BaseRAdapter detect_layer_type returns 'unknown' for chartSeries with
   testthat::expect_equal(adapter$detect_layer_type(layer), "unknown")
 })
 
-test_that("BaseRAdapter detect_layer_type returns 'unknown' for chartSeries with TA='addVo()' and warns", {
-  # Reset the one-time warning latch so this test sees the emission.
-  # Access the internal env via asNamespace() (load_all-safe).
+test_that("BaseRAdapter detect_layer_type accepts chartSeries with TA='addVo()' silently", {
+  # Clear the warn-once latch, so silence here is not an earlier warning's.
   warn_env <- get(".maidr_chartseries_ta_warned", envir = asNamespace("maidr"))
   warn_env$value <- FALSE
-  # Also clear rlang's onceonly cache for this id, otherwise the
-  # `.frequency = "once"` guard will suppress the emission within the
-  # same R session.
   rlang::reset_warning_verbosity("maidr_chartseries_ta_unsupported")
   on.exit({
     warn_env$value <- FALSE
@@ -522,11 +682,37 @@ test_that("BaseRAdapter detect_layer_type returns 'unknown' for chartSeries with
     function_name = "chartSeries",
     args = list(type = "candlesticks", TA = "addVo()")
   )
-  testthat::expect_warning(
-    res <- adapter$detect_layer_type(layer),
-    class = "maidr_chartseries_ta_unsupported"
-  )
-  testthat::expect_equal(res, "unknown")
+  testthat::expect_no_warning(res <- adapter$detect_layer_type(layer))
+  testthat::expect_equal(res, "candlestick")
+})
+
+test_that("BaseRAdapter detect_layer_type returns 'unknown' for an indicator other than addVo() and warns", {
+  # Reset the one-time warning latch so each case sees the emission.
+  # Access the internal env via asNamespace() (load_all-safe).
+  warn_env <- get(".maidr_chartseries_ta_warned", envir = asNamespace("maidr"))
+  reset <- function() {
+    warn_env$value <- FALSE
+    # Also clear rlang's onceonly cache for this id, otherwise the
+    # `.frequency = "once"` guard will suppress the emission within the
+    # same R session.
+    rlang::reset_warning_verbosity("maidr_chartseries_ta_unsupported")
+  }
+  on.exit(reset(), add = TRUE)
+
+  adapter <- maidr:::BaseRAdapter$new()
+  # A lone indicator, one joined to addVo() by TAsep, and one in a vector.
+  for (ta in list("addSMA()", "addVo();addSMA()", c("addVo()", "addMACD()"))) {
+    reset()
+    layer <- list(
+      function_name = "chartSeries",
+      args = list(type = "candlesticks", TA = ta)
+    )
+    testthat::expect_warning(
+      res <- adapter$detect_layer_type(layer),
+      class = "maidr_chartseries_ta_unsupported"
+    )
+    testthat::expect_equal(res, "unknown", label = paste(ta, collapse = ","))
+  }
 })
 
 test_that("BaseRAdapter detect_layer_type accepts chartSeries with TA=NULL (no fallback)", {
@@ -542,7 +728,7 @@ test_that("BaseRAdapter detect_layer_type accepts chartSeries with TA=NULL (no f
   testthat::expect_equal(adapter$detect_layer_type(layer), "candlestick")
 })
 
-test_that("BaseRAdapter detect_layer_type returns 'unknown' for chartSeries with Volume column and default TA", {
+test_that("BaseRAdapter detect_layer_type accepts chartSeries with Volume column and default TA", {
   testthat::skip_if_not_installed("quantmod")
   testthat::skip_if_not_installed("xts")
 
@@ -555,7 +741,7 @@ test_that("BaseRAdapter detect_layer_type returns 'unknown' for chartSeries with
   }, add = TRUE)
 
   # xts with Volume column, mimicking the user's typical chartSeries() call
-  # WITHOUT an explicit TA arg. quantmod auto-adds addVo() in that case.
+  # WITHOUT an explicit TA arg. quantmod's default TA is "addVo()".
   tst <- xts::xts(
     cbind(
       Open   = c(101.371, 101.918, 105.285, 102.531),
@@ -577,11 +763,9 @@ test_that("BaseRAdapter detect_layer_type returns 'unknown' for chartSeries with
     function_name = "chartSeries",
     args = list(tst, type = "candlesticks")  # NB: no TA in args
   )
-  testthat::expect_warning(
-    res <- adapter$detect_layer_type(layer),
-    class = "maidr_chartseries_ta_unsupported"
-  )
-  testthat::expect_equal(res, "unknown")
+  # The default TA draws the volume panel, which is read as a bar layer.
+  testthat::expect_no_warning(res <- adapter$detect_layer_type(layer))
+  testthat::expect_equal(res, "candlestick")
 })
 
 test_that("BaseRAdapter detect_layer_type accepts chartSeries with Volume column and explicit TA=NULL", {
@@ -665,10 +849,11 @@ test_that("BaseRAdapter is_stacked_barplot with default beside", {
   test_matrix <- matrix(c(10, 20, 15, 25), nrow = 2)
   args <- list(test_matrix)
 
-  # Default beside is NULL, which means NOT stacked (the function returns FALSE for NULL)
-  # Only matrix with explicit beside=FALSE is considered stacked
+  # barplot()'s default is beside = FALSE, so a matrix WITHOUT an
+  # explicit beside argument draws stacked bars and must be detected
+  # as stacked
   result <- adapter$is_stacked_barplot(args)
-  testthat::expect_false(result)
+  testthat::expect_true(result)
 })
 
 test_that("BaseRAdapter detect_layer_type uses is_dodged_barplot", {

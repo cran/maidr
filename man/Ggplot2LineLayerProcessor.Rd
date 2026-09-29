@@ -4,437 +4,928 @@
 \alias{Ggplot2LineLayerProcessor}
 \title{Final Line Layer Processor - Uses Actual SVG Structure}
 \description{
-Final Line Layer Processor - Uses Actual SVG Structure
-
-Final Line Layer Processor - Uses Actual SVG Structure
-}
-\details{
 Processes line plot layers using the actual gridSVG structure discovered:
-- Lines: GRID.polyline.61.1.1, GRID.polyline.61.1.2, GRID.polyline.61.1.3
-- Points: geom_point.points.63.1.1 through geom_point.points.63.1.24 (grouped by series)
+\itemize{
+\item Lines: GRID.polyline.61.1.1, GRID.polyline.61.1.2, GRID.polyline.61.1.3
+\item Points: geom_point.points.63.1.1 through geom_point.points.63.1.24 (grouped by series)
 }
-\keyword{(1-based)}
-\keyword{(GRID.polyline.XX)}
-\keyword{Find}
-\keyword{NULL}
-\keyword{Position}
-\keyword{Process}
-\keyword{Returns}
-\keyword{SVG}
-\keyword{`plot`.}
-\keyword{actual}
-\keyword{among}
-\keyword{detection}
-\keyword{fails.}
-\keyword{grob}
-\keyword{if}
-\keyword{in}
+}
 \keyword{internal}
-\keyword{layer}
-\keyword{layers}
-\keyword{line}
-\keyword{line-typed}
-\keyword{main}
-\keyword{of}
-\keyword{polyline}
-\keyword{registry-based}
-\keyword{structure}
-\keyword{the}
-\keyword{this}
-\keyword{with}
 \section{Super class}{
-\code{\link[maidr:LayerProcessor]{maidr::LayerProcessor}} -> \code{Ggplot2LineLayerProcessor}
-}
-\section{Public fields}{
-\if{html}{\out{<div class="r6-fields">}}
-\describe{
-\item{\code{layer_info}}{Information about the layer being processed}
-
-\item{\code{last_result}}{The last processing result}
-}
-\if{html}{\out{</div>}}
-}
-\section{Active bindings}{
-\if{html}{\out{<div class="r6-active-bindings">}}
-\describe{
-\item{\code{layer_info}}{Information about the layer being processed}
-
-\item{\code{last_result}}{The last processing result}
-}
-\if{html}{\out{</div>}}
+\code{\link[maidr:LayerProcessor]{LayerProcessor}} -> \code{Ggplot2LineLayerProcessor}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-Ggplot2LineLayerProcessor-process}{\code{Ggplot2LineLayerProcessor$process()}}
-\item \href{#method-Ggplot2LineLayerProcessor-extract_layer_axes}{\code{Ggplot2LineLayerProcessor$extract_layer_axes()}}
-\item \href{#method-Ggplot2LineLayerProcessor-extract_data}{\code{Ggplot2LineLayerProcessor$extract_data()}}
-\item \href{#method-Ggplot2LineLayerProcessor-format_x_value}{\code{Ggplot2LineLayerProcessor$format_x_value()}}
-\item \href{#method-Ggplot2LineLayerProcessor-get_original_x_column}{\code{Ggplot2LineLayerProcessor$get_original_x_column()}}
-\item \href{#method-Ggplot2LineLayerProcessor-extract_multiline_data}{\code{Ggplot2LineLayerProcessor$extract_multiline_data()}}
-\item \href{#method-Ggplot2LineLayerProcessor-extract_single_line_data}{\code{Ggplot2LineLayerProcessor$extract_single_line_data()}}
-\item \href{#method-Ggplot2LineLayerProcessor-get_group_column}{\code{Ggplot2LineLayerProcessor$get_group_column()}}
-\item \href{#method-Ggplot2LineLayerProcessor-generate_selectors}{\code{Ggplot2LineLayerProcessor$generate_selectors()}}
-\item \href{#method-Ggplot2LineLayerProcessor-generate_multiline_selectors}{\code{Ggplot2LineLayerProcessor$generate_multiline_selectors()}}
-\item \href{#method-Ggplot2LineLayerProcessor-generate_single_line_selector}{\code{Ggplot2LineLayerProcessor$generate_single_line_selector()}}
-\item \href{#method-Ggplot2LineLayerProcessor-find_all_polyline_grobs}{\code{Ggplot2LineLayerProcessor$find_all_polyline_grobs()}}
-\item \href{#method-Ggplot2LineLayerProcessor-line_layer_position}{\code{Ggplot2LineLayerProcessor$line_layer_position()}}
-\item \href{#method-Ggplot2LineLayerProcessor-find_main_polyline_grob}{\code{Ggplot2LineLayerProcessor$find_main_polyline_grob()}}
-\item \href{#method-Ggplot2LineLayerProcessor-needs_reordering}{\code{Ggplot2LineLayerProcessor$needs_reordering()}}
-\item \href{#method-Ggplot2LineLayerProcessor-clone}{\code{Ggplot2LineLayerProcessor$clone()}}
+  \itemize{
+    \item \href{#method-Ggplot2LineLayerProcessor-process}{\code{Ggplot2LineLayerProcessor$process()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-attach_group_axis}{\code{Ggplot2LineLayerProcessor$attach_group_axis()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-has_series_groups}{\code{Ggplot2LineLayerProcessor$has_series_groups()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-resolve_group_mapping}{\code{Ggplot2LineLayerProcessor$resolve_group_mapping()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-extract_layer_axes}{\code{Ggplot2LineLayerProcessor$extract_layer_axes()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-extract_data}{\code{Ggplot2LineLayerProcessor$extract_data()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-attach_discrete_y_names}{\code{Ggplot2LineLayerProcessor$attach_discrete_y_names()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-normalize_point_values}{\code{Ggplot2LineLayerProcessor$normalize_point_values()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-panel_axis_labels}{\code{Ggplot2LineLayerProcessor$panel_axis_labels()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-build_level_lookup}{\code{Ggplot2LineLayerProcessor$build_level_lookup()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-attach_level_labels}{\code{Ggplot2LineLayerProcessor$attach_level_labels()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-get_layer}{\code{Ggplot2LineLayerProcessor$get_layer()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-get_x_transformation}{\code{Ggplot2LineLayerProcessor$get_x_transformation()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-transform_x_values}{\code{Ggplot2LineLayerProcessor$transform_x_values()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-format_x_value}{\code{Ggplot2LineLayerProcessor$format_x_value()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-extract_multiline_data}{\code{Ggplot2LineLayerProcessor$extract_multiline_data()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-extract_single_line_data}{\code{Ggplot2LineLayerProcessor$extract_single_line_data()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-recover_x_values}{\code{Ggplot2LineLayerProcessor$recover_x_values()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-get_group_column}{\code{Ggplot2LineLayerProcessor$get_group_column()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-generate_selectors}{\code{Ggplot2LineLayerProcessor$generate_selectors()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-series_count}{\code{Ggplot2LineLayerProcessor$series_count()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-curve_selectors}{\code{Ggplot2LineLayerProcessor$curve_selectors()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-polyline_curve_count}{\code{Ggplot2LineLayerProcessor$polyline_curve_count()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-generate_multiline_selectors}{\code{Ggplot2LineLayerProcessor$generate_multiline_selectors()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-generate_single_line_selector}{\code{Ggplot2LineLayerProcessor$generate_single_line_selector()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-line_layer_position}{\code{Ggplot2LineLayerProcessor$line_layer_position()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-find_main_polyline_grob}{\code{Ggplot2LineLayerProcessor$find_main_polyline_grob()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-needs_reordering}{\code{Ggplot2LineLayerProcessor$needs_reordering()}}
+    \item \href{#method-Ggplot2LineLayerProcessor-clone}{\code{Ggplot2LineLayerProcessor$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="apply_scale_mapping"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-apply_scale_mapping'><code>maidr::LayerProcessor$apply_scale_mapping()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>maidr::LayerProcessor$augment_plot()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>maidr::LayerProcessor$get_last_result()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>maidr::LayerProcessor$get_layer_index()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>maidr::LayerProcessor$initialize()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>maidr::LayerProcessor$needs_augmentation()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>maidr::LayerProcessor$reorder_layer_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>maidr::LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="augment_plot"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-augment_plot'><code>LayerProcessor$augment_plot()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_grob_tree"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_grob_tree'><code>LayerProcessor$find_layer_grob_tree()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="find_layer_polyline_grob"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-find_layer_polyline_grob'><code>LayerProcessor$find_layer_polyline_grob()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_last_result'><code>LayerProcessor$get_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_built_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_built_data'><code>LayerProcessor$get_layer_built_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_layer_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_layer_index'><code>LayerProcessor$get_layer_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="get_own_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-get_own_layer'><code>LayerProcessor$get_own_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="initialize"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-initialize'><code>LayerProcessor$initialize()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_flipped_layer"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_flipped_layer'><code>LayerProcessor$is_flipped_layer()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="is_horizontal_call"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-is_horizontal_call'><code>LayerProcessor$is_horizontal_call()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="layer_polyline_grobs"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-layer_polyline_grobs'><code>LayerProcessor$layer_polyline_grobs()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="needs_augmentation"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-needs_augmentation'><code>LayerProcessor$needs_augmentation()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="other_geom_grob_prefixes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-other_geom_grob_prefixes'><code>LayerProcessor$other_geom_grob_prefixes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="reorder_layer_data"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-reorder_layer_data'><code>LayerProcessor$reorder_layer_data()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="resolve_panel_index"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-resolve_panel_index'><code>LayerProcessor$resolve_panel_index()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="set_last_result"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-set_last_result'><code>LayerProcessor$set_last_result()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="swap_point_axes"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-swap_point_axes'><code>LayerProcessor$swap_point_axes()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_columns"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_columns'><code>LayerProcessor$unflip_columns()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="maidr" data-topic="LayerProcessor" data-id="unflip_panel_params"><a href='../../maidr/html/LayerProcessor.html#method-LayerProcessor-unflip_panel_params'><code>LayerProcessor$unflip_panel_params()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-process"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-process}{}}}
-\subsection{Method \code{process()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$process(
+\subsection{\code{Ggplot2LineLayerProcessor$process()}}{
+  Process the line layer with actual SVG structure
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$process(
   plot,
   layout,
   built = NULL,
   gt = NULL,
-  scale_mapping = NULL,
   grob_id = NULL,
   panel_id = NULL,
   panel_ctx = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{layout}}{Layout information}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{gt}}{Gtable object (optional)}
+      \item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+      \item{\code{panel_ctx}}{Panel context for panel-scoped selector generation (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with data and selectors
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-attach_group_axis"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-attach_group_axis}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$attach_group_axis()}}{
+  Add the legend title as the z axis label for a
+multi-series line layer.
 
-\item{\code{layout}}{Layout information}
-
-\item{\code{built}}{Built plot data (optional)}
-
-\item{\code{gt}}{Gtable object (optional)}
-
-\item{\code{scale_mapping}}{Scale mapping for faceted plots (optional)}
-
-\item{\code{grob_id}}{Grob ID for faceted plots (optional)}
-
-\item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+Shared with the smooth layer processor via
+\code{attach_series_group_axis()}; see \code{R/series_group_utils.R}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$attach_group_axis(plot, built, data, axes)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{data}}{The extracted layer data}
+      \item{\code{axes}}{Axes built so far}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The axes list, with z added when the layer is grouped
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with data and selectors
-Extract axes labels for line layers, with a special case for
-moving-average geoms (e.g. `tidyquant::geom_ma`).
 
-By default the parent `LayerProcessor$extract_layer_axes()` reads the
-y-label from the layer's aesthetic mapping. For a moving-average
-overlay typically written as `geom_ma(aes(y = close), ma_fun = SMA, ...)`,
-this yields the literal input-column name `"close"`, which is misleading:
-the value being plotted (and announced during navigation) is the moving
-average of `close`, not `close` itself. We detect `GeomMA` (the class of
-tidyquant's geom_ma layer) and override the y-label accordingly. Plain
-`geom_line` / `geom_smooth` overlays are untouched.
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-has_series_groups"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-has_series_groups}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$has_series_groups()}}{
+  Report whether extracted data is split into named series.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$has_series_groups(data)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{data}}{The extracted layer data}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    TRUE when there is more than one series and points carry z
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-resolve_group_mapping"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-resolve_group_mapping}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$resolve_group_mapping()}}{
+  Resolve the aesthetic that splits this layer into series.
+
+A line has no fill, so only the colour aesthetic is probed.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$resolve_group_mapping(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    list with \code{aes} (aesthetic spelling variants, or NULL when
+nothing is mapped) and \code{column} (the mapped column name, or
+"group" as a fallback)
+  }
 }
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-extract_layer_axes"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-extract_layer_axes}{}}}
-\subsection{Method \code{extract_layer_axes()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$extract_layer_axes(plot, layout)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$extract_layer_axes()}}{
+  Extract axes labels for line layers, with a special case for
+moving-average geoms (e.g. \code{tidyquant::geom_ma}).
+
+By default the parent \code{LayerProcessor$extract_layer_axes()} reads the
+y-label from the layer's aesthetic mapping. For a moving-average
+overlay typically written as \code{geom_ma(aes(y = close), ma_fun = SMA, ...)},
+this yields the literal input-column name \code{"close"}, which is misleading:
+the value being plotted (and announced during navigation) is the moving
+average of \code{close}, not \code{close} itself. We detect \code{GeomMA} (the class of
+tidyquant's geom_ma layer) and override the y-label accordingly. Plain
+\code{geom_line} / \code{geom_smooth} overlays are untouched.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$extract_layer_axes(plot, layout)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{layout}}{Layout information}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    list(x = list(label = ...), y = list(label = ...))
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-
-\item{\code{layout}}{Layout information}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-list(x = list(label = ...), y = list(label = ...))
-Extract data from line layer (single or multiline)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-extract_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-extract_data}{}}}
-\subsection{Method \code{extract_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$extract_data(
+\subsection{\code{Ggplot2LineLayerProcessor$extract_data()}}{
+  Extract data from line layer (single or multiline)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$extract_data(plot, built = NULL, panel_id = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of arrays, each containing series data points
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-attach_discrete_y_names"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-attach_discrete_y_names}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$attach_discrete_y_names()}}{
+  Give every point the \emph{name} of its discrete y level.
+
+A factor y aesthetic reaches the payload as ggplot2's internal level
+code, so without this a reader hears "5" where the axis says "Awake".
+\code{y} deliberately stays numeric -- it drives sonification, braille and
+the min/max range -- and the name rides alongside as \code{label}.
+
+A continuous y is returned untouched, so no \code{label} is emitted and the
+frontend announces the number, which is the right reading there.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$attach_discrete_y_names(
+  series_data,
   plot,
-  built = NULL,
-  scale_mapping = NULL,
+  built,
   panel_id = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{series_data}}{List of series produced by the extractors above}
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The series list, labelled when y is discrete
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-normalize_point_values"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-normalize_point_values}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$normalize_point_values()}}{
+  Coerce every point's y to a plain number.
 
-\item{\code{built}}{Built plot data (optional)}
+A discrete y aesthetic -- the ordinal level of a hypnogram, and the
+reason this processor exists -- makes \code{ggplot_build()} return y as a
+\code{mapped_discrete} vector. That class carries no \code{asJSON} method, so
+emitting it verbatim aborts payload serialisation with
+"No method asJSON S3 class: mapped_discrete". Stripping the class here
+keeps y a bare number, which is what the wire contract asks for and
+what drives sonification, braille and the min/max range.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$normalize_point_values(series_data)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{series_data}}{List of series produced by the line extractor}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The series list with numeric y values
+  }
+}
 
-\item{\code{scale_mapping}}{Scale mapping for faceted plots (optional)}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-panel_axis_labels"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-panel_axis_labels}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$panel_axis_labels()}}{
+  Read one panel's own axis labels.
 
-\item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+The labels ggplot2 drew on a panel's axis, which is what a sighted
+reader sees, and which both discrete recoveries below start from: the
+y level names in \code{build_level_lookup()}, and the x values in
+\code{recover_x_values()}. Both need the same three things to hold before
+the labels can be trusted -- present, non-empty, no \code{NA} -- so the
+check lives here rather than being spelled out at each call site.
+
+The \code{tryCatch} is not incidental: \code{get_labels()} is one of the
+accessors whose spelling has moved between ggplot2 versions, the same
+reason \code{get_x_transformation()} exists. Guarding it in one place leaves
+the next version bump one site to fix instead of two that can drift.
+
+Indexes with \verb{[[axis]]} rather than \verb{$x} / \verb{$y}: \code{$} on a list falls
+back to partial matching, so a \code{panel_params} without an \code{x} but with
+an \code{x.range} would silently hand back the range. Exact matching returns
+NULL there, which is the honest answer.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$panel_axis_labels(built, panel_index, axis)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_index}}{Index into \code{built$layout$panel_params}}
+      \item{\code{axis}}{Either \code{"x"} or \code{"y"}}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of labels, or NULL when the panel has no such
+scale or its labels are unusable
+  }
 }
-\if{html}{\out{</div>}}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-build_level_lookup"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-build_level_lookup}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$build_level_lookup()}}{
+  Build a numeric-level to level-name lookup for the y
+aesthetic.
+
+For a factor (or character) y aesthetic, \code{ggplot_build()} replaces the
+level with its numeric position, so \code{built$data$y} is a level \emph{code}
+and the name has to be recovered from somewhere else.
+
+It is recovered from the panel's own y scale -- the very labels ggplot2
+draws on the axis -- which makes the announcement agree with what a
+sighted reader sees, and sidesteps two traps:
+\itemize{
+\item \strong{Row order is not a join key.} \code{GeomLine$setup_data()} sorts the
+built data by (PANEL, group, x) -- that sort is the documented
+difference between \code{geom_line()} and \code{geom_path()} -- while the
+caller's column keeps its own order, so pairing them row by row
+attaches the wrong name to the wrong code.
+\item \strong{Unused levels are dropped.} A discrete scale defaults to
+\code{drop = TRUE}, so a factor declaring five levels of which two are
+drawn is coded 1..2, not by position in \code{levels()}. Reading names off
+the factor would name code 2 after the second declared level rather
+than the second drawn one.
 }
-\subsection{Returns}{
-List of arrays, each containing series data points
+
+Returns NULL for a plain continuous y, in which case no \code{label} is
+emitted and the frontend announces the numeric value.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$build_level_lookup(plot, built, panel_id = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object (unused; kept for call-site symmetry)}
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional) -- each panel
+carries its own scale under \code{scales = "free_y"}}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Named character vector keyed by the built y value, or NULL
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-attach_level_labels"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-attach_level_labels}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$attach_level_labels()}}{
+  Attach the ordinal level name to every point of every
+series. Points whose y has no entry in the lookup are left untouched,
+so the frontend falls back to the numeric announcement for them.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$attach_level_labels(series_data, lookup)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{series_data}}{List of series produced by the line extractor}
+      \item{\code{lookup}}{Named character vector keyed by the built y value}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The series list with \code{label} attached where known
+  }
 }
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-get_layer"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-get_layer}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$get_layer()}}{
+  The ggplot2 layer this processor is responsible for.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$get_layer(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The layer, or NULL when the index does not resolve
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-get_x_transformation"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-get_x_transformation}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$get_x_transformation()}}{
+  The transformation a panel's x scale applies to positions.
+
+\code{ggplot_build()} stores x positions in transformed space, so under
+\code{scale_x_log10()} the data value 100 is recorded as 2. Recovering
+the value the axis actually shows needs the scale's own transformation.
+ggplot2 >= 3.5 exposes it through \code{get_transformation()}; earlier
+versions keep it in the scale's \code{trans} field.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$get_x_transformation(built, panel_index)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_index}}{Index into \code{built$layout$panel_params}}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A \pkg{scales} transform object, or NULL when none is available
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-transform_x_values"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-transform_x_values}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$transform_x_values()}}{
+  Project raw x values into the space \code{ggplot_build()}
+stores positions in.
+
+Going forwards (raw -> transformed) rather than inverting the built
+positions keeps the comparison exact: it repeats the very computation
+ggplot2 performed, so no floating-point drift is introduced. Values the
+transformation cannot represent (a non-positive number under a log
+scale, say) become NA and simply fail to match.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$transform_x_values(values, transformation)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{values}}{Raw values taken from the plot's data}
+      \item{\code{transformation}}{Transform object from \code{get_x_transformation()},
+or NULL}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Numeric vector the same length as \code{values}
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-format_x_value"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-format_x_value}{}}}
-\subsection{Method \code{format_x_value()}}{
-Format an x-axis value as character.
+\subsection{\code{Ggplot2LineLayerProcessor$format_x_value()}}{
+  Format an x-axis value for the payload.
 
-Date / POSIXct / POSIXlt values are formatted via `format()` so that a
-`Date` column emits ISO date strings (e.g. "2024-01-02") rather than
-the underlying numeric days-since-epoch representation produced by
-`ggplot_build()`. All other types use `as.character()`. Mirrors
-`Ggplot2BarLayerProcessor$format_x_value()` so bar and line layers
-from the same Date column align string-wise.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$format_x_value(x)}\if{html}{\out{</div>}}
+A plain number stays a number, so a line over a numeric column carries
+the same x a \code{geom_point()} over it does. Date / POSIXct / POSIXlt
+values are formatted via \code{format()} so that a \code{Date} column emits ISO
+date strings (e.g. "2024-01-02") rather than the underlying numeric
+days-since-epoch representation produced by \code{ggplot_build()}, which
+keeps them aligned string-wise with
+\code{Ggplot2BarLayerProcessor$format_x_value()}. Anything else -- a
+category label -- is a string. See \code{line_x_value()}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$format_x_value(x)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{x}}{The value to format}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A number, or a string
+  }
 }
 
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-get_original_x_column"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-get_original_x_column}{}}}
-\subsection{Method \code{get_original_x_column()}}{
-Recover the original (untransformed) x column for a layer.
-
-`ggplot_build()` transforms Date / POSIXct columns into numeric
-days-since-epoch on `built$data[[i]]$x`. To emit ISO strings we need
-the original column from `plot$data` (or the layer's own `data`).
-
-Returns the per-row vector of x values aligned to `built_data` if a
-simple column reference is found and the lengths match, otherwise
-NULL.
-Extract data for multiple line series
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$get_original_x_column(plot, built_data)}\if{html}{\out{</div>}}
-}
-
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-extract_multiline_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-extract_multiline_data}{}}}
-\subsection{Method \code{extract_multiline_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$extract_multiline_data(layer_data, plot)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$extract_multiline_data()}}{
+  Extract data for multiple line series
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$extract_multiline_data(
+  layer_data,
+  plot,
+  recovered_x = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_data}}{The built layer data}
+      \item{\code{plot}}{The original ggplot2 object}
+      \item{\code{recovered_x}}{x values recovered from the built column by
+\code{recover_x_values()}, aligned to \code{layer_data}'s rows. NULL
+leaves the built value in place.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of arrays, each containing series data
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_data}}{The built layer data}
-
-\item{\code{plot}}{The original ggplot2 object}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of arrays, each containing series data
-Extract data for single line (backward compatibility)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-extract_single_line_data"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-extract_single_line_data}{}}}
-\subsection{Method \code{extract_single_line_data()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$extract_single_line_data(layer_data, plot = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$extract_single_line_data()}}{
+  Extract data for single line (backward compatibility)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$extract_single_line_data(
+  layer_data,
+  plot = NULL,
+  recovered_x = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_data}}{The built layer data}
+      \item{\code{plot}}{The original ggplot2 object. Unread since x recovery moved
+upstream; kept for signature parity with
+\code{extract_multiline_data()} and for existing call sites.}
+      \item{\code{recovered_x}}{x values recovered from the built column by
+\code{recover_x_values()}, aligned to \code{layer_data}'s rows. NULL
+leaves the built value in place.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List containing single series data
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{layer_data}}{The built layer data}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-recover_x_values"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-recover_x_values}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$recover_x_values()}}{
+  The x values to announce, recovered from the BUILT column.
+
+\code{ggplot_build()} stores x in the scale's own space -- a level code for
+a discrete scale, days-since-epoch for a Date -- so something has to
+turn it back into what the axis shows. The obvious route, reading the
+caller's column, cannot be indexed by the built row number:
+\code{GeomLine$setup_data()} sorts the built data by (PANEL, group, x),
+which is the documented difference between \code{geom_line()} and
+\code{geom_path()}, while the caller's column keeps its own order. Pairing
+the two by position hands every point another point's x.
+
+Recovering from the built value instead is order-proof by
+construction, and per scale type it needs:
+\itemize{
+\item discrete -- the panel's own x labels, indexed by the level code, the
+same source \code{build_level_lookup()} uses for a discrete y
+\item transformed (Date, POSIXct, log) -- the transformation's inverse
+\item plain numeric -- nothing; the built value already IS the value
 }
-\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$recover_x_values(layer_data, built, panel_id = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{layer_data}}{The built layer data for this layer}
+      \item{\code{built}}{Built plot data}
+      \item{\code{panel_id}}{Panel ID for faceted plots (optional)}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A vector aligned to \code{layer_data}'s rows, or NULL to leave the
+built value alone
+  }
 }
-\subsection{Returns}{
-List containing single series data
-Get the grouping column name from plot mappings
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-get_group_column"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-get_group_column}{}}}
-\subsection{Method \code{get_group_column()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$get_group_column(plot)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$get_group_column()}}{
+  Get the grouping column name from plot mappings
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$get_group_column(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Name of the grouping column
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Name of the grouping column
-Generate selectors using actual SVG structure
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-generate_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-generate_selectors}{}}}
-\subsection{Method \code{generate_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$generate_selectors(
+\subsection{\code{Ggplot2LineLayerProcessor$generate_selectors()}}{
+  One selector per series this line layer draws.
+
+The panel-wide polyline list conflates two different things: a
+grouped \code{geom_line()} draws ALL of its curves as ONE
+\code{polylineGrob} whose \code{id} splits it (gridSVG then emits
+\code{GRID.polyline.N.1.1}, \code{.1.2}, ... per curve), while a
+second polyline-producing layer such as \code{geom_smooth()} adds
+further grobs of its own. Indexing that flat list by this layer's
+position among line layers therefore returned one selector for a
+three-curve layer as soon as a smooth sat beside it, and the
+frontend's multiline trace refuses a selector list whose length does
+not equal the series count -- so the layer lost highlighting
+entirely rather than mis-aiming it.
+
+This resolves THIS layer's own grob first and then enumerates the
+curves inside it, emitting one selector per curve. When the curves
+cannot be lined up with the series, no selector is emitted: a caller
+can tell an absent selector apart from a wrong one, a user cannot.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$generate_selectors(
   plot,
   gt = NULL,
   grob_id = NULL,
-  panel_ctx = NULL
-)}\if{html}{\out{</div>}}
+  panel_ctx = NULL,
+  built = NULL,
+  n_series = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{gt}}{Gtable object (optional)}
+      \item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+      \item{\code{panel_ctx}}{Panel context for panel-scoped selector generation}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{n_series}}{Number of series \code{extract_data()} produced, or
+NULL to derive it from the built layer data}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors for each series
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{plot}}{The ggplot2 object}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-series_count"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-series_count}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$series_count()}}{
+  Number of series this layer draws in the given panel.
 
-\item{\code{gt}}{Gtable object (optional)}
+Never throws: selector generation has to degrade gracefully for
+inputs \code{extract_data()} would reject.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$series_count(plot, built = NULL, panel_ctx = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{built}}{Built plot data (optional)}
+      \item{\code{panel_ctx}}{Panel context for panel-scoped selector generation}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Number of series, at least 1
+  }
+}
 
-\item{\code{grob_id}}{Grob ID for faceted plots (optional)}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-curve_selectors"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-curve_selectors}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$curve_selectors()}}{
+  Selectors for the curves inside this layer's own grob.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$curve_selectors(plot, panel_grob, n_series)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+      \item{\code{panel_grob}}{The panel's grob tree}
+      \item{\code{n_series}}{Number of series the layer produced}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors, or NULL when the grob does not line up
+with the series
+  }
 }
-\if{html}{\out{</div>}}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-polyline_curve_count"></a>}}
+\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-polyline_curve_count}{}}}
+\subsection{\code{Ggplot2LineLayerProcessor$polyline_curve_count()}}{
+  Number of separate curves a polyline grob draws.
+
+\code{polylineGrob()} splits one grob into several drawn lines via
+\code{id} / \code{id.lengths}; gridSVG renders each as its own SVG
+element suffixed \code{.1.<k>}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$polyline_curve_count(grob)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{grob}}{A polyline grob}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer count, at least 1
+  }
 }
-\subsection{Returns}{
-List of selectors for each series
-Generate selectors for multiline plots using actual structure
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-generate_multiline_selectors"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-generate_multiline_selectors}{}}}
-\subsection{Method \code{generate_multiline_selectors()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$generate_multiline_selectors(base_id, num_series)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$generate_multiline_selectors()}}{
+  Generate selectors for multiline plots using actual structure
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$generate_multiline_selectors(base_id, num_series)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{base_id}}{The base ID from the grob (e.g., "61")}
+      \item{\code{num_series}}{Number of series}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List of selectors
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{base_id}}{The base ID from the grob (e.g., "61")}
-
-\item{\code{num_series}}{Number of series}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List of selectors
-Generate selector for single line plot
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-generate_single_line_selector"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-generate_single_line_selector}{}}}
-\subsection{Method \code{generate_single_line_selector()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$generate_single_line_selector(base_id)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$generate_single_line_selector()}}{
+  Generate selector for single line plot
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$generate_single_line_selector(base_id)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{base_id}}{The base ID from the grob}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with single selector
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{base_id}}{The base ID from the grob}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with single selector
-Find all polyline parent grobs (GRID.polyline.XX) in the panel.
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-find_all_polyline_grobs"></a>}}
-\if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-find_all_polyline_grobs}{}}}
-\subsection{Method \code{find_all_polyline_grobs()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$find_all_polyline_grobs(gt)}\if{html}{\out{</div>}}
-}
-
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-line_layer_position"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-line_layer_position}{}}}
-\subsection{Method \code{line_layer_position()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$line_layer_position(plot)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$line_layer_position()}}{
+  Position of this layer among the polyline-producing layers.
+
+Delegates to \code{polyline_layer_position()}, which counts every layer type
+that renders an auto-named polyline: "line", "step" and "contour".
+\code{layer_polyline_grobs()} skips only the layers that name their grob tree
+after their geom, and none of these three do. \code{GeomContour} defines no
+\code{draw_panel()} of its own and so draws through \code{GeomPath}'s -- a bare
+\code{polylineGrob} -- while \code{GeomStep} stairsteps its data and then calls
+the same method; either sits in that candidate list exactly as a
+\code{geom_line()} does. Counting only "line" layers would therefore index
+the wrong polyline for \emph{every} layer of a plot that combines them.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$line_layer_position(plot)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{plot}}{The ggplot2 object}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The 1-based position, or NULL if registry-based detection fails
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-find_main_polyline_grob"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-find_main_polyline_grob}{}}}
-\subsection{Method \code{find_main_polyline_grob()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$find_main_polyline_grob(gt)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$find_main_polyline_grob()}}{
+  Find the main polyline grob (GRID.polyline.XX)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$find_main_polyline_grob(gt)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{gt}}{The gtable to search}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The main polyline grob or NULL
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{gt}}{The gtable to search}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-The main polyline grob or NULL
-Check if layer needs reordering
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-needs_reordering"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-needs_reordering}{}}}
-\subsection{Method \code{needs_reordering()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$needs_reordering()}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$needs_reordering()}}{
+  Check if layer needs reordering
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$needs_reordering()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    FALSE (line plots typically don't need reordering)
+  }
 }
 
-\subsection{Returns}{
-FALSE (line plots typically don't need reordering)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Ggplot2LineLayerProcessor-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-Ggplot2LineLayerProcessor-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Ggplot2LineLayerProcessor$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{Ggplot2LineLayerProcessor$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{Ggplot2LineLayerProcessor$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

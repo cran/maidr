@@ -9,7 +9,8 @@ create_maidr_iframe(
   width = "100\%",
   height = "450px",
   plot_id = NULL,
-  use_cdn = NULL
+  use_cdn = NULL,
+  page_fallback = FALSE
 )
 }
 \arguments{
@@ -21,15 +22,18 @@ create_maidr_iframe(
 
 \item{plot_id}{Unique identifier for the plot}
 
-\item{use_cdn}{Logical. If `TRUE`, use CDN. If `FALSE`, use bundled files.
-If `NULL` (default), auto-detect based on internet availability.}
+\item{use_cdn}{Logical. If \code{TRUE}, use CDN. If \code{FALSE}, use bundled files.
+If \code{NULL} (default), auto-detect based on internet availability.}
+
+\item{page_fallback}{Logical. Passed to \code{\link[=create_standalone_html]{create_standalone_html()}}.}
 }
 \value{
 Character string of iframe HTML
 }
 \description{
-Creates an iframe element with base64-encoded src containing the complete MAIDR plot.
-Uses data URI with base64 encoding to avoid quote escaping issues with JSON.
-This isolates each plot in its own document/JavaScript context.
+Creates an iframe element whose \code{srcdoc} carries the complete MAIDR plot.
+This isolates each plot in its own document/JavaScript context while leaving
+it same-origin with the page, which is what Web Bluetooth and Web Serial ---
+and so the tactile display --- require.
 }
 \keyword{internal}

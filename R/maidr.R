@@ -3,12 +3,27 @@
 #' Display a ggplot2 or Base R plot as an interactive, accessible visualization
 #' using the MAIDR (Multimodal Access and Interactive Data Representation) system.
 #'
+#' Attaching maidr masks \code{methods::show()}. An object that is not a
+#' plot maidr renders -- an S4 object, a vector, a data frame -- is handed to
+#' \code{methods::show()}, so it prints as it did before maidr was attached.
+#' In a script or a package, call \code{maidr::show()} and
+#' \code{methods::show()} by name; \code{?"base-r-wrappers"} lists
+#' everything else attaching maidr masks.
+#'
 #' @param plot A ggplot2 object or NULL for Base R auto-detection
 #' @param use_cdn Logical. Controls where MAIDR.js is loaded from:
 #'   \itemize{
-#'     \item \code{TRUE}: Use CDN (requires internet)
-#'     \item \code{FALSE}: Use local bundled files (works offline)
-#'     \item \code{NULL} (default): Auto-detect based on internet availability
+#'     \item \code{TRUE}: Use the jsDelivr CDN (requires internet), which
+#'       loads the latest published MAIDR.js rather than the bundled copy.
+#'       The version is looked up once per R session; pin one with
+#'       \code{options(maidr.cdn_version = ...)}, see
+#'       \code{?"maidr-options"}.
+#'     \item \code{FALSE}: Use local bundled files (works offline, and makes
+#'       no network request)
+#'     \item \code{NULL} (default): Use the bundled files, so the viewer
+#'       works offline. With \code{as_widget = TRUE} the widget instead
+#'       auto-detects internet availability and uses the CDN when online,
+#'       as the knitr and Shiny paths do.
 #'   }
 #' @param shiny If TRUE, returns just the SVG content instead of full HTML document
 #' @param as_widget If TRUE, returns an htmlwidget object instead of opening in browser
@@ -40,17 +55,26 @@
 #' @importFrom ggplotify as.grob
 #' @export
 show <- function(plot = NULL, use_cdn = NULL, shiny = FALSE, as_widget = FALSE, ...) {
+  # Attaching maidr masks methods::show(). An object that is not a ggplot2
+  # plot -- an S4 object, a vector -- is that generic's to print, so it is
+  # handed over rather than failed on (#320). Decided on the object rather
+  # than through the registry: the Base R adapter claims by device state,
+  # not by what it was given, so with a recorded chart on the device an S4
+  # object would otherwise be "handled" as Base R and never printed.
+  if (!is.null(plot) && !inherits(plot, "ggplot")) {
+    return(methods::show(plot))
+  }
+
   device_id <- grDevices::dev.cur()
   is_base_r <- is.null(plot)
 
   if (is_base_r) {
     if (!is_patching_active() || !has_device_calls(device_id)) {
-      stop(
-        "No Base R plots detected. Please create a plot first ",
-        "(e.g., barplot(), plot())."
-      )
+      stop(no_base_r_plots_message(), call. = FALSE)
     }
   }
+
+  orchestrator <- NULL
 
   # Check for unsupported plots early - use native graphics fallback
   if (!shiny && !as_widget) {
@@ -73,9 +97,11 @@ show <- function(plot = NULL, use_cdn = NULL, shiny = FALSE, as_widget = FALSE, 
         replay_to_native_device(device_id)
         clear_device_storage(device_id)
       } else {
-        # ggplot2: Print to native graphics device
+        # ggplot2: Print to native graphics device with ggplot2's own
+        # method, not the one maidr registered, which would run the support
+        # check a second time.
         grDevices::dev.new()
-        print(plot)
+        print_ggplot_natively(plot)
       }
 
       return(invisible(NULL))
@@ -84,17 +110,30 @@ show <- function(plot = NULL, use_cdn = NULL, shiny = FALSE, as_widget = FALSE, 
 
   if (as_widget) {
     result <- maidr_widget(plot, use_cdn = use_cdn, ...)
-    if (is_base_r) close_maidr_temp_device()
+    if (is_base_r) {
+      clear_device_storage(device_id)
+      close_maidr_temp_device()
+    }
     return(result)
   }
 
   if (shiny) {
     result <- create_maidr_html(plot, use_cdn = use_cdn, shiny = TRUE, ...)
-    if (is_base_r) close_maidr_temp_device()
+    if (is_base_r) {
+      clear_device_storage(device_id)
+      close_maidr_temp_device()
+    }
     return(result)
   }
 
-  html_doc <- create_maidr_html(plot, use_cdn = use_cdn, ...)
+  # Reuse the orchestrator from the fallback check above: creating a new
+  # one would re-run the entire layer-processing pipeline.
+  html_doc <- create_maidr_html(
+    plot,
+    use_cdn = use_cdn,
+    orchestrator = orchestrator,
+    ...
+  )
 
   if (is_base_r) {
     clear_device_storage(device_id)
@@ -109,8 +148,8 @@ show <- function(plot = NULL, use_cdn = NULL, shiny = FALSE, as_widget = FALSE, 
 
 #' Create HTML document with maidr enhancements using the orchestrator
 #' @param plot A ggplot2 object
-#' @param use_cdn Logical. If `TRUE`, use CDN. If `FALSE`, use bundled files.
-#'   If `NULL` (default), auto-detect based on internet availability.
+#' @param use_cdn Logical. If `TRUE`, use CDN. If `FALSE` or `NULL`
+#'   (default), use bundled files; see [maidr_html_dependencies()].
 #' @param shiny If TRUE, returns just the SVG content instead of full HTML document
 #' @param orchestrator Optional pre-created orchestrator to reuse (avoids double creation)
 #' @param ... Additional arguments passed to internal functions
@@ -137,12 +176,16 @@ create_maidr_html <- function(plot, use_cdn = NULL, shiny = FALSE, orchestrator 
     return(create_fallback_html(plot, shiny = shiny, ...))
   }
 
-  gt <- orchestrator$get_gtable()
+  warn_panel_fallback(orchestrator)
 
-  # All plot types now use the unified orchestrator data generation
-  maidr_data <- orchestrator$generate_maidr_data()
+  svg_content <- build_interactive_svg(orchestrator, ...)
 
-  svg_content <- create_enhanced_svg(gt, maidr_data, ...)
+  # `build_interactive_svg()` answers NULL for a plot that could not be built,
+  # which is the same outcome as the gate above reaching a chart it cannot
+  # read: a picture rather than nothing.
+  if (is.null(svg_content)) {
+    return(create_fallback_html(plot, shiny = shiny, ...))
+  }
 
   if (shiny) {
     return(htmltools::HTML(paste(svg_content, collapse = "\n")))
@@ -152,18 +195,118 @@ create_maidr_html <- function(plot, use_cdn = NULL, shiny = FALSE, orchestrator 
   html_doc
 }
 
+#' Build the Interactive SVG, or Answer NULL When It Cannot Be Built
+#'
+#' `should_fallback()` answers whether the recorded layers are ones maidr can
+#' read. It cannot answer whether the plot can be *exported*, because that is
+#' the exporter's question and the exporter is not consulted until the export
+#' runs. When maidr exported through gridSVG, two base R charts failed there
+#' on plots that pass the gate -- `matplot()` with "non-numeric argument to
+#' binary operator" and `symbols()` with gridSVG's own "We shouldn't be here!"
+#' assertion, both raised inside `grid.export()` rather than by anything this
+#' package computes. The svglite export draws both, but an export can still
+#' throw.
+#'
+#' Left to propagate, those kill the save outright: the caller gets neither
+#' the interactive chart nor the static image, and an error naming a package
+#' they never called. The lower claim the package makes about a recorded plot
+#' is that it is *at worst a picture* (#216), and an export that throws is no
+#' more a reason to break that than a layer it cannot classify.
+#'
+#' The whole build is guarded rather than the export alone. From the caller's
+#' side the gtable, the data and the SVG are one step -- producing the
+#' interactive chart -- and which of the three threw does not change what they
+#' should be given instead.
+#'
+#' `maidr_set_fallback(enabled = FALSE)` is the caller asking for the failure
+#' rather than the picture, so the error is re-raised untouched there.
+#'
+#' @param orchestrator The orchestrator for the plot being rendered.
+#' @param ... Passed through to `create_enhanced_svg()`.
+#' @return The SVG content, or `NULL` when the build failed and fallback is
+#'   enabled.
+#' @keywords internal
+build_interactive_svg <- function(orchestrator, ...) {
+  build <- function() {
+    gt <- orchestrator$get_gtable()
+
+    # All plot types now use the unified orchestrator data generation
+    maidr_data <- orchestrator$generate_maidr_data()
+
+    create_enhanced_svg(gt, maidr_data, ...)
+  }
+
+  if (!is_fallback_enabled()) {
+    return(build())
+  }
+
+  tryCatch(build(), error = function(e) {
+    if (is_fallback_warning_enabled()) {
+      warning(
+        "Plot could not be rendered interactively (",
+        conditionMessage(e),
+        "). Rendering as static image instead.",
+        call. = FALSE
+      )
+    }
+    NULL
+  })
+}
+
+#' Warn About Panels That Lost Their Accessible Data
+#'
+#' Emitted from the single place every render path funnels through, so a
+#' figure is described once no matter which entry point produced it.
+#'
+#' @param orchestrator The orchestrator about to render the figure
+#' @return Invisibly NULL
+#' @keywords internal
+warn_panel_fallback <- function(orchestrator) {
+  if (!is_fallback_warning_enabled()) {
+    return(invisible(NULL))
+  }
+  # Only the Base R orchestrator scopes a fallback to panels; on any other
+  # orchestrator this member is simply absent.
+  if (!is.function(orchestrator$fallback_panels)) {
+    return(invisible(NULL))
+  }
+
+  panels <- orchestrator$fallback_panels()
+  if (length(panels) == 0) {
+    return(invisible(NULL))
+  }
+
+  warning(format_panel_fallback_warning(panels), call. = FALSE)
+
+  invisible(NULL)
+}
+
 #' Save Interactive Plot as HTML File
 #'
-#' Save a ggplot2 or Base R plot as a standalone HTML file with interactive
-#' MAIDR accessibility features.
+#' Save a ggplot2 or Base R plot as an HTML file with interactive MAIDR
+#' accessibility features.
+#'
+#' By default the MAIDR.js library is written to a \code{lib/} folder beside
+#' \code{file}, and the two have to be shared together: zip the folder that
+#' holds both, or copy both. An \code{.html} sent on its own loads no
+#' MAIDR.js and shows a plain, inaccessible chart. \code{use_cdn = TRUE}
+#' writes one self-contained file instead, which needs internet access
+#' whenever it is viewed and loads the latest published MAIDR.js from
+#' jsDelivr rather than the copy bundled with this package.
 #'
 #' @param plot A ggplot2 object or NULL for Base R auto-detection
 #' @param file File path where to save the HTML file (e.g., "plot.html")
 #' @param use_cdn Logical. Controls where MAIDR.js is loaded from:
 #'   \itemize{
-#'     \item \code{TRUE}: Use CDN (requires internet)
-#'     \item \code{FALSE}: Use local bundled files (works offline)
-#'     \item \code{NULL} (default): Auto-detect based on internet availability
+#'     \item \code{TRUE}: Use CDN. The file is self-contained but needs
+#'       internet access when it is viewed. It names the latest published
+#'       MAIDR.js by version (looked up once per R session, or the bundled
+#'       version when the lookup cannot be made); pin a version with
+#'       \code{options(maidr.cdn_version = ...)}, see
+#'       \code{?"maidr-options"}.
+#'     \item \code{FALSE} or \code{NULL} (default): Use the bundled files.
+#'       The MAIDR.js library is written to a \code{lib/} folder beside
+#'       \code{file}, which has to travel with it.
 #'   }
 #' @param ... Additional arguments passed to internal functions
 #' @return The file path where the HTML was saved (invisibly)
@@ -196,10 +339,7 @@ save_html <- function(plot = NULL, file = "plot.html", use_cdn = NULL, ...) {
 
   if (is_base_r) {
     if (!is_patching_active() || !has_device_calls(device_id)) {
-      stop(
-        "No Base R plots detected. Please create a plot first ",
-        "(e.g., barplot(), plot())."
-      )
+      stop(no_base_r_plots_message(), call. = FALSE)
     }
   }
 

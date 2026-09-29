@@ -31,7 +31,6 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     #' @param layout Layout information
     #' @param built Built plot data
     #' @param gt Gtable object
-    #' @param scale_mapping Scale mapping (unused for candlestick)
     #' @param grob_id Grob ID (faceting; not yet supported for candlestick)
     #' @param panel_id Panel id (patchwork; accepted for signature parity)
     #' @param panel_ctx Panel context (faceting; not yet supported)
@@ -40,7 +39,6 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
                        layout,
                        built = NULL,
                        gt = NULL,
-                       scale_mapping = NULL,
                        grob_id = NULL,
                        panel_id = NULL,
                        panel_ctx = NULL) {
@@ -51,7 +49,7 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
         gt <- ggplot2::ggplotGrob(plot)
       }
 
-      data <- self$extract_data(plot, built, scale_mapping)
+      data <- self$extract_data(plot, built)
       selectors <- self$generate_selectors(plot, gt, grob_id, panel_ctx)
 
       list(
@@ -71,9 +69,8 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     #' @description Extract OHLC data points from the plot
     #' @param plot ggplot2 object
     #' @param built Built plot data
-    #' @param scale_mapping Unused
     #' @return List of CandlestickPoint dicts
-    extract_data = function(plot, built = NULL, scale_mapping = NULL) {
+    extract_data = function(plot, built = NULL) {
       if (is.null(built)) {
         built <- ggplot2::ggplot_build(plot)
       }
@@ -278,6 +275,9 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     # ------------------------------------------------------------------
 
     #' @description Resolve a mapping quosure to a column name in `data`
+    #' @param mapping_expr A mapping quosure
+    #' @param data The data frame to resolve the column in
+    #' @return The column name, or NULL when the mapping names no column of `data`
     resolve_col = function(mapping_expr, data) {
       if (is.null(mapping_expr)) return(NULL)
       nm <- tryCatch(rlang::as_label(mapping_expr), error = function(e) NULL)
@@ -286,6 +286,8 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     },
 
     #' @description Format an x-axis value as character
+    #' @param x The value to format
+    #' @return Character vector
     format_x_value = function(x) {
       if (inherits(x, c("Date", "POSIXct", "POSIXlt"))) {
         return(format(x))
@@ -294,6 +296,7 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     },
 
     #' @description Get the effective mapping (layer mapping merged on top)
+    #' @param plot The ggplot2 object
     get_effective_mapping = function(plot) {
       layer_index <- self$get_layer_index()
       layer_mapping <- plot$layers[[layer_index]]$mapping
@@ -305,6 +308,7 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     },
 
     #' @description Get original data for the layer (falls back to plot$data)
+    #' @param plot The ggplot2 object
     get_original_data = function(plot) {
       layer_index <- self$get_layer_index()
       layer <- plot$layers[[layer_index]]
@@ -319,26 +323,26 @@ Ggplot2CandlestickProcessor <- R6::R6Class(
     },
 
     #' @description Count candles from the original data
+    #' @param plot The ggplot2 object
+    #' @return Integer, 0 when there is no data
     count_candles = function(plot) {
       d <- self$get_original_data(plot)
       if (is.data.frame(d)) nrow(d) else 0L
     },
 
-    #' @description Find the panel grob (panel_ctx-aware)
+    #' @description Find the panel grob this layer draws into
+    #' @param gt Gtable object
+    #' @param panel_ctx Panel context for patchwork leaves and facets; NULL
+    #'   for a single plot, where the panel is the cell literally named "panel"
+    #' @return The panel gTree, or NULL when it cannot be resolved
     find_panel_grob = function(gt, panel_ctx = NULL) {
-      if (!is.null(panel_ctx) && !is.null(panel_ctx$panel_name)) {
-        idx <- which(grepl(paste0("^", panel_ctx$panel_name, "\\b"),
-                           gt$layout$name))
-      } else {
-        idx <- which(gt$layout$name == "panel")
-      }
-      if (length(idx) == 0) return(NULL)
-      pg <- gt$grobs[[idx[1]]]
-      if (!inherits(pg, "gTree")) return(NULL)
-      pg
+      find_gtable_panel_grob(gt, panel_ctx)
     },
 
     #' @description Find the first descendant whose name matches `pattern`
+    #' @param grob The grob tree to search
+    #' @param pattern Regular expression the grob name must match
+    #' @return The matching grob name, or NULL
     find_first_child_name = function(grob, pattern) {
       if (!inherits(grob, "gTree") || is.null(grob$children)) {
         return(NULL)

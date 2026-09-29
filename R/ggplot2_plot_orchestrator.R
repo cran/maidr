@@ -1,15 +1,44 @@
+#' Which of a plot's layers drew no rows
+#'
+#' The one place the emptiness rule lives, so the orchestrator and the
+#' patchwork leaf path cannot disagree about it. A leaf inside a
+#' \code{patchwork} composition is classified by
+#' \code{ggplot2_patchwork_utils.R} rather than by
+#' \code{Ggplot2PlotOrchestrator$detect_layers()}, so a rule written only in
+#' the orchestrator would have left every composed chart ghosting (#232).
+#'
+#' One \code{ggplot_build()} per plot, not per layer. That is what makes this
+#' affordable at all: the same question asked inside
+#' \code{detect_layer_type()} would multiply the build by the layer count,
+#' which is why #231 applied it to one geom only.
+#'
+#' A build that cannot answer reports nothing empty. A plot that will not
+#' build is a bigger problem than this one, and it is about to be met by
+#' whatever else needs the build.
+#'
+#' @param plot A ggplot object.
+#' @return Integer indices into \code{plot$layers}, possibly empty.
+#' @keywords internal
+layers_that_drew_nothing <- function(plot) {
+  built <- tryCatch(ggplot2::ggplot_build(plot), error = function(e) NULL)
+  if (is.null(built) || is.null(built$data)) {
+    return(integer(0))
+  }
+
+  which(vapply(
+    built$data,
+    function(drawn) !is.null(drawn) && isTRUE(nrow(drawn) == 0L),
+    logical(1)
+  ))
+}
+
+
 #' Plot Orchestrator Class
 #'
+#' @description
 #' This class orchestrates the detection and processing of multiple layers
 #' in a ggplot2 object. It analyzes each layer individually and combines
 #' the results into a comprehensive interactive plot.
-#'
-#' @field plot The ggplot2 object being processed
-#' @field layers List of detected layer information
-#' @field layer_processors List of layer-specific processors
-#' @field combined_data Combined data from all layers
-#' @field combined_selectors Combined selectors from all layers
-#' @field layout Layout information from the plot
 #'
 #' @keywords internal
 Ggplot2PlotOrchestrator <- R6::R6Class(
@@ -26,8 +55,23 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
     .format_config = NULL
   ),
   public = list(
+    #' @description Create an orchestrator for a ggplot2 object
+    #' @param plot The ggplot2 object
     initialize = function(plot) {
       private$.plot <- plot
+
+      # The jitter recovery memoises per layer, and a layer is not enough to
+      # identify a plot: ggplot2 documents a layer as reusable across plots,
+      # and `+.gg` appends the same ggproto object rather than a clone. Two
+      # plots built from one `geom_jitter()` are therefore `identical()` at
+      # that layer, and the second was answered with the first's values --
+      # silently, whenever the row counts matched (#174 review).
+      #
+      # Cleared here rather than guarded inside the cache, because this is the
+      # boundary the cache was scoped to in the first place: it exists to stop
+      # a faceted plot rebuilding once per panel, and a panel only belongs to
+      # the run that is starting now.
+      reset_jitter_cache()
 
       registry <- get_global_registry()
       system_name <- registry$detect_system(plot)
@@ -43,6 +87,7 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         self$process_layers()
       }
     },
+    #' @description Turn each layer of the plot into a layer entry with its detected type
     detect_layers = function() {
       layers <- private$.plot$layers
       private$.layers <- list()
@@ -51,7 +96,54 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         layer_info <- self$analyze_single_layer(layers[[i]], i)
         private$.layers[[i]] <- layer_info
       }
+
+      self$skip_layers_that_drew_nothing()
     },
+
+    #' @description Retag every layer that drew no rows as \code{"skip"}.
+    #'
+    #' A layer can be typed perfectly well and still have nothing in it -- a
+    #' \code{data =} filtered to nothing, a stat that dropped every row, a
+    #' facet arrangement in which one layer's data is empty, a **Suggests**
+    #' package absent so the stat could not run. It then reaches the schema
+    #' as a layer a reader can walk into and find nothing in. Measured on ten
+    #' points, the second layer drawn from \code{d[0, ]}:
+    #'
+    #' \preformatted{
+    #' geom_point()   point(0)      an empty layer of points
+    #' geom_col()     bar(0)        an empty layer of bars
+    #' geom_line()    line(1x0)     one series, holding nothing
+    #' geom_smooth()  smooth(1x0)   one series, holding nothing
+    #' }
+    #'
+    #' Asked here rather than in \code{detect_layer_type()} because emptiness
+    #' is not a fact about what *kind* of chart a layer is, and because the
+    #' classifier runs per layer: one \code{ggplot_build()} for the whole
+    #' pass costs a chart ~37 ms once, where asking per layer would multiply
+    #' it. \code{"skip"} rather than a fourth answer, because that is the tag
+    #' the rest of the orchestrator already understands -- including the #176
+    #' guard, so a chart whose *only* layer is empty falls back to an image
+    #' rather than announcing itself as interactive with nothing in it.
+    #'
+    #' A build that cannot answer changes nothing. That is the same posture
+    #' \code{layer_drew_nothing()} takes: a plot that will not build is a
+    #' bigger problem than this, and it is about to be met by whatever else
+    #' needs the build.
+    #'
+    #' @return NULL, invisibly. Rewrites \code{private$.layers} in place.
+    skip_layers_that_drew_nothing = function() {
+      for (i in layers_that_drew_nothing(private$.plot)) {
+        if (i <= length(private$.layers)) {
+          private$.layers[[i]]$type <- "skip"
+        }
+      }
+
+      invisible(NULL)
+    },
+    #' @description Describe one ggplot2 layer as a layer entry with its detected type
+    #' @param layer A ggplot2 layer object
+    #' @param layer_index Index of the layer
+    #' @return Layer information list
     analyze_single_layer = function(layer, layer_index) {
       # Safely extract layer components with error handling
       geom <- tryCatch(layer$geom, error = function(e) NULL)
@@ -79,6 +171,10 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
 
       layer_info
     },
+    #' @description The layer type the adapter detects for one layer of the plot
+    #' @param plot The ggplot2 object
+    #' @param layer_index Index of the layer
+    #' @return Character string
     determine_layer_type = function(plot, layer_index) {
       layer <- plot$layers[[layer_index]]
       if (is.null(layer)) {
@@ -88,6 +184,7 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
       # Delegate layer type detection to the adapter
       private$.adapter$detect_layer_type(layer, plot)
     },
+    #' @description Create a processor for every layer of a known type
     create_layer_processors = function() {
       private$.layer_processors <- list()
 
@@ -100,12 +197,15 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         }
       }
     },
+    #' @description Create the processor for one layer
+    #' @param layer_info Layer information
+    #' @return A layer processor, or NULL for an unknown type
     create_layer_processor = function(layer_info) {
       # Use unified layer processor creation logic
       self$create_unified_layer_processor(layer_info)
     },
 
-    #' Unified layer processor creation - used by all plot types
+    #' @description Unified layer processor creation - used by all plot types
     #' @param layer_info Layer information
     #' @return Layer processor instance
     create_unified_layer_processor = function(layer_info) {
@@ -119,9 +219,8 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
 
       processor
     },
+    #' @description Run every layer processor and combine the results
     process_layers = function() {
-      private$.layout <- self$extract_layout()
-
       plot_for_render <- private$.plot
       for (i in seq_along(private$.layer_processors)) {
         processor <- private$.layer_processors[[i]]
@@ -148,20 +247,29 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         }
       }
 
-      # Suppress native R graphics window by using a null PDF device
-      # This ensures only the HTML output is displayed
+      # Suppress native R graphics window by using a null PDF device.
+      # This ensures only the HTML output is displayed. `finally` guards
+      # the device/tempfile cleanup against build errors.
+      # Build ONCE and derive the gtable from the built object:
+      # ggplotGrob() would re-run the whole ggplot_build() internally.
       current_dev <- grDevices::dev.cur()
       null_pdf <- tempfile(fileext = ".pdf")
       grDevices::pdf(null_pdf, width = 7, height = 5)
+      built_final <- tryCatch(
+        {
+          built <- ggplot2::ggplot_build(plot_for_render)
+          private$.gtable <- ggplot2::ggplot_gtable(built)
+          built
+        },
+        finally = {
+          grDevices::dev.off()
+          if (current_dev > 1) grDevices::dev.set(current_dev)
+          unlink(null_pdf)
+        }
+      )
 
-      built_final <- ggplot2::ggplot_build(plot_for_render)
-      gt_final <- ggplot2::ggplotGrob(plot_for_render)
-
-      # Close null device and restore previous device
-      grDevices::dev.off()
-      if (current_dev > 1) grDevices::dev.set(current_dev)
-      unlink(null_pdf)
-      private$.gtable <- gt_final
+      # Reuse the build for layout labels instead of building again
+      private$.layout <- self$extract_layout(built_final)
 
       # Extract format configuration from scale label functions (maidr:: label wrappers)
       private$.format_config <- extract_format_config(built_final)
@@ -183,8 +291,14 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
 
       self$combine_layer_results(layer_results)
     },
-    extract_layout = function() {
-      built <- ggplot2::ggplot_build(private$.plot)
+    #' @description Read the figure-level title, subtitle, caption and axis labels from the built
+    #'   plot
+    #' @param built Built plot data (optional)
+    #' @return List
+    extract_layout = function(built = NULL) {
+      if (is.null(built)) {
+        built <- ggplot2::ggplot_build(private$.plot)
+      }
 
       # Use built$plot$labels (post-build) which includes stat-generated labels
       # like "count" for geom_bar(). In ggplot2 v4, the pre-build plot$labels
@@ -226,6 +340,8 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
 
       layout
     },
+    #' @description Combine the per-layer results into the subplot grid
+    #' @param layer_results List of per-layer results, one per processor
     combine_layer_results = function(layer_results) {
       combined_data <- list()
 
@@ -236,7 +352,7 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         # tagged "skip" by the adapter; the orchestrator leaves a NULL slot).
         if (is.null(result)) next
 
-        # --- Multi-layer expansion (e.g. violin → violin_box + violin_kde) ---
+        # --- Multi-layer expansion (e.g. violin -> violin_box + violin_kde) ---
         if (isTRUE(result$multi_layer) && !is.null(result$layers)) {
           for (sub in result$layers) {
             layer_counter <- layer_counter + 1
@@ -329,7 +445,7 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
       if (!self$is_patchwork_plot() && !self$is_faceted_plot()) {
         # Single plot: create 1x1 grid
         single_subplot <- list(
-          id = paste0("maidr-subplot-", as.integer(Sys.time())),
+          id = paste0("maidr-subplot-", generate_unique_id()),
           layers = combined_data
         )
         # Collapse multiple line layers (e.g. candlestick + several MAs)
@@ -344,6 +460,8 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
 
       private$.combined_selectors <- combined_selectors
     },
+    #' @description Assemble the MAIDR data object for the figure
+    #' @return List with an id and the subplots
     generate_maidr_data = function() {
       # All plot types use the same unified structure
       # The combined_data already has the correct format for each plot type
@@ -367,18 +485,28 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
 
       maidr_obj
     },
+    #' @description The gtable the plot was drawn to
+    #' @return A gtable, or NULL before the layers are processed
     get_gtable = function() {
       private$.gtable
     },
+    #' @description The figure-level layout read by `extract_layout()`
+    #' @return List
     get_layout = function() {
       private$.layout
     },
+    #' @description The combined per-layer data
+    #' @return List
     get_combined_data = function() {
       private$.combined_data
     },
+    #' @description The processors created for the layers
+    #' @return List
     get_layer_processors = function() {
       private$.layer_processors
     },
+    #' @description The detected layer entries
+    #' @return List
     get_layers = function() {
       private$.layers
     },
@@ -403,8 +531,6 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
     #' @description Process a faceted plot using utility functions
     #' @return NULL (sets internal state)
     process_faceted_plot = function() {
-      private$.layout <- self$extract_layout()
-
       # Create layer processors to access reorder functions
       self$detect_layers()
       self$create_layer_processors()
@@ -429,20 +555,27 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         }
       }
 
-      # Suppress native R graphics window by using a null PDF device
+      # Suppress native R graphics window by using a null PDF device.
+      # Build ONCE and derive the gtable from the built object; `finally`
+      # guards cleanup against build errors.
       current_dev <- grDevices::dev.cur()
       null_pdf <- tempfile(fileext = ".pdf")
       grDevices::pdf(null_pdf, width = 7, height = 5)
+      built <- tryCatch(
+        {
+          built_plot <- ggplot2::ggplot_build(plot_for_render)
+          private$.gtable <- ggplot2::ggplot_gtable(built_plot)
+          built_plot
+        },
+        finally = {
+          grDevices::dev.off()
+          if (current_dev > 1) grDevices::dev.set(current_dev)
+          unlink(null_pdf)
+        }
+      )
 
-      private$.gtable <- ggplot2::ggplotGrob(plot_for_render)
-
-      # Built plot data (use reordered plot)
-      built <- ggplot2::ggplot_build(plot_for_render)
-
-      # Close null device and restore previous device
-      grDevices::dev.off()
-      if (current_dev > 1) grDevices::dev.set(current_dev)
-      unlink(null_pdf)
+      # Reuse the build for layout labels instead of building again
+      private$.layout <- self$extract_layout(built)
 
       # Extract format configuration from scale label functions
       private$.format_config <- extract_format_config(built)
@@ -477,27 +610,43 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         axes = list()
       )
 
+      # Let processors add the geoms their selectors need (violin injects a
+      # thin boxplot). The augmented composition must be both rendered and
+      # processed: grob names come from a global counter, so selectors
+      # computed against one build do not resolve against another.
+      plot_for_render <- augment_patchwork_leaves(private$.plot)
+      # And in the row order the processors declare to the frontend, which
+      # the single-plot and facet paths already draw in (see
+      # `reorder_patchwork_leaves()`).
+      plot_for_render <- reorder_patchwork_leaves(plot_for_render)
+
       # Suppress native R graphics window by using a null PDF device
       current_dev <- grDevices::dev.cur()
       null_pdf <- tempfile(fileext = ".pdf")
       grDevices::pdf(null_pdf, width = 7, height = 5)
 
-      if (requireNamespace("patchwork", quietly = TRUE)) {
-        private$.gtable <- patchwork::patchworkGrob(private$.plot)
-      } else {
-        private$.gtable <- ggplot2::ggplotGrob(ggplot2::ggplot())
-      }
-
-      # Close null device and restore previous device
-      grDevices::dev.off()
-      if (current_dev > 1) grDevices::dev.set(current_dev)
-      unlink(null_pdf)
+      tryCatch(
+        {
+          if (requireNamespace("patchwork", quietly = TRUE)) {
+            private$.gtable <- patchwork::patchworkGrob(plot_for_render)
+          } else {
+            private$.gtable <- ggplot2::ggplotGrob(ggplot2::ggplot())
+          }
+        },
+        finally = {
+          # Close null device and restore previous device
+          grDevices::dev.off()
+          if (current_dev > 1) grDevices::dev.set(current_dev)
+          unlink(null_pdf)
+        }
+      )
 
       # Use utility function to process patchwork plot
       private$.combined_data <- process_patchwork_plot_data(
-        private$.plot,
+        plot_for_render,
         private$.layout,
-        private$.gtable
+        private$.gtable,
+        original_plot = private$.plot
       )
       private$.combined_selectors <- list()
     },
@@ -509,8 +658,25 @@ Ggplot2PlotOrchestrator <- R6::R6Class(
         return(FALSE)
       }
 
-      any(sapply(private$.layers, function(layer) {
+      if (any(sapply(private$.layers, function(layer) {
         isTRUE(layer$type == "unknown")
+      }))) {
+        return(TRUE)
+      }
+
+      # Nothing unsupported, and also nothing to read. A layer the adapter
+      # tags "skip" is drawn but carries no observations -- a reference line,
+      # a text annotation, a candlestick's wick folded into its body -- so a
+      # plot made only of those emits zero layers.
+      #
+      # That has to keep falling back. #176 stopped one `geom_hline()` costing
+      # a whole chart its interactivity by skipping the line instead of
+      # declaring the plot unsupported, and the trap on the other side of that
+      # is "no unsupported layers" quietly coming to mean "no layers at all":
+      # a chart announcing itself as interactive with nothing in it is worse
+      # than an image, because an image at least says what it is.
+      all(sapply(private$.layers, function(layer) {
+        isTRUE(layer$type == "skip")
       }))
     },
 

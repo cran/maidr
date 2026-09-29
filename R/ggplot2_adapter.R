@@ -1,5 +1,6 @@
 #' ggplot2 System Adapter
 #'
+#' @description
 #' Adapter for the ggplot2 plotting system. This adapter wraps the existing
 #' ggplot2 functionality to work with the new extensible architecture.
 #'
@@ -10,19 +11,19 @@ Ggplot2Adapter <- R6::R6Class(
   "Ggplot2Adapter",
   inherit = SystemAdapter,
   public = list(
-    #' Initialize the ggplot2 adapter
+    #' @description Initialize the ggplot2 adapter
     initialize = function() {
       super$initialize("ggplot2")
     },
 
-    #' Check if this adapter can handle a plot object
+    #' @description Check if this adapter can handle a plot object
     #' @param plot_object The plot object to check
     #' @return TRUE if this adapter can handle the object, FALSE otherwise
     can_handle = function(plot_object) {
       inherits(plot_object, "ggplot")
     },
 
-    #' Detect the type of a single layer
+    #' @description Detect the type of a single layer
     #' @param layer The ggplot2 layer object to analyze
     #' @param plot_object The parent plot object (for context)
     #' @return String indicating the layer type (e.g., "bar", "line", "point")
@@ -35,19 +36,388 @@ Ggplot2Adapter <- R6::R6Class(
       stat_class <- class(layer$stat)[1]
       position_class <- class(layer$position)[1]
 
+      # An annotation is decoration whatever it is drawn with, so this is
+      # asked before any geom branch: `annotate("rect")` would otherwise be
+      # measured as a schedule and `annotate("segment")` claimed as one.
+      #
+      # Skipped rather than left "unknown", which is what makes
+      # `has_unsupported_layers()` true and drops the *whole plot* to a static
+      # image -- the same cost #176 measured for a reference line, and
+      # `annotate("rect")` is at least as ordinary a thing to put on a chart.
+      # A plot that is *nothing but* annotations still falls back, because it
+      # then reads as no layers at all rather than because of a rule about
+      # geoms.
+      if (layer_is_annotation(layer)) {
+        return("skip")
+      }
+
+      # geom_step() draws a stairstep: the value is piecewise constant, held
+      # across an interval and then jumped, rather than interpolated between
+      # samples the way a line implies. GeomStep *inherits* GeomPath, so this
+      # branch must come before the line branch below; and the comparison must
+      # stay on class(...)[1] (an inherits() test would swallow step into
+      # "line" and silently mis-describe the data).
+      #
+      # GeomStep is also the default geom of `stat_ecdf()`. That was declined
+      # at first, for two reasons that both reproduce: StatEcdf returns its
+      # rows in input order (GeomStep only sorts them later, inside
+      # draw_panel) and pads them with -Inf / Inf, so the rows as built
+      # neither match the drawn polyline nor carry usable x values. Measured
+      # on n = 20: 22 rows, two of them infinite, `is.unsorted(x)` TRUE.
+      #
+      # Both are now undone by `Ggplot2StepLayerProcessor$in_drawn_order()`
+      # before anything reads the frame, so an ECDF is claimed as well (#168).
+      # Still only these two stats: a step layer drawn on some other computed
+      # stat keeps returning "unknown" and so keeps the static-image fallback
+      # it had before step support existed.
+      if (geom_class == "GeomStep" &&
+        stat_class %in% c("StatIdentity", "StatEcdf")) {
+        return("step")
+      }
+
       # GeomMA comes from tidyquant::geom_ma() and inherits from GeomLine.
       # We treat it as a regular line layer so moving averages overlaid on
       # a candlestick chart are detected and rendered alongside the candles.
+      # GeomArea inherits GeomRibbon, which inherits GeomPath -- so this must
+      # come before the line branch, and must stay a class(...)[1] comparison
+      # rather than an inherits() test, or an area layer would be swallowed as
+      # a line and announce its cumulative band tops as values.
+      # Only an identity-ish stat is claimed. `geom_area()` defaults to
+      # StatAlign, but the geom is also how a filled density curve is drawn --
+      # `geom_area(stat = "density")` is a smooth, and its rows are a computed
+      # curve rather than the observations an area chart carries. Same rule
+      # GeomStep follows above, and for the same reason.
+      if (geom_class == "GeomArea" &&
+        stat_class %in% c("StatAlign", "StatIdentity")) {
+        if (identical(position_class, "PositionFill")) {
+          return("stacked_normalized_area")
+        }
+        # Whether the bands stack is not knowable from the position alone: a
+        # single-series chart is drawn with PositionStack too and has nothing
+        # stacked on it. The processor decides from the series it emits, and
+        # both types route to it.
+        return("area")
+      }
+
+      # `geom_segment()` and `geom_curve()` draw a span between two points.
+      # When the two ends share a coordinate that span is an interval in a
+      # lane -- a schedule, a range plot, a high-low chart -- which is the
+      # gantt trace MAIDR has carried since xability/maidr#801. The four
+      # columns `ggplot_build` computes (`x`, `xend`, `y`, `yend`) are the
+      # interval and the lane exactly, with nothing inverted from a pixel.
+      #
+      # `geom_curve()` computes the same four columns and reads the same way:
+      # the curvature is a drawing instruction that never becomes a position,
+      # the conclusion xability/maidr#1094 reached for `Plot.link`'s `curve`
+      # option. It was refused until #195, not on its reading but on its
+      # export -- `gridSVG`, maidr's exporter then, rejected the vectorised
+      # `gp` a `curve` grob carries, so claiming the layer turned a chart that
+      # rendered as a picture into a `save_html()` that raised.
+      # `split_vectorised_curve_grobs()` gives the export one curve per row,
+      # which fixed it and is what the per-interval selectors address.
+      #
+      # A layer whose segments share nothing is an edge in a node-link
+      # diagram, and goes back to "unknown" -- which is what it returns today,
+      # so a chart that is refused keeps exactly the static-image fallback it
+      # already had. `segment_lane_axis()` is what asks, of the whole layer.
+      # `geom_contour()` and `geom_density_2d()` draw a scalar field as curves
+      # of constant value, and ggplot2 computes `level` as a **number** on
+      # every row -- so the value is data rather than a fill colour, which is
+      # what left the same chart unread in the Observable adapter
+      # (xability/maidr#1084) and what makes it readable here.
+      #
+      # The filled forms are a different chart: they draw the bands *between*
+      # levels, and their `level` is a factor of intervals rather than a
+      # number. `GeomContourFilled` and `GeomDensity2dFilled` do not inherit
+      # their line counterparts, so naming only the two is enough -- and
+      # `contour_curves()` checks the frame as well, so a stat that ever
+      # produced banded levels under a line geom is declined rather than read.
+      if (geom_class %in% c("GeomContour", "GeomDensity2d")) {
+        return("contour")
+      }
+
+      # `geom_rug()` marks one short tick per observation against the panel's
+      # edge -- the raw data, which the density curve or histogram it usually
+      # accompanies does not state. `GeomRug` is a direct `Geom` subclass, so
+      # it matched no branch above and reached the unknown processor: a
+      # rug-only chart emitted one empty layer and a rug beside a scatter
+      # added an empty one to land on (#222).
+      #
+      # py-maidr has read the same chart as points since
+      # xability/py-maidr#250, and the processor emits `point` to match. It is
+      # dispatched under its own name because what it reads and how it
+      # addresses its elements are both its own -- the arrangement `dotplot`
+      # already uses to emit `hist`.
+      if (geom_class == "GeomRug") {
+        return("rug")
+      }
+
+      # `geom_polygon()` is `geom_path()` with its ends joined and its
+      # interior filled, and `GeomPath` has read as `"line"` for as long as
+      # this dispatch has existed -- so claiming it decides nothing new
+      # about what a series of vertices means. It makes two spellings of one
+      # mark behave alike, the same argument `GeomSpoke` is routed on above.
+      #
+      # It was the last geom in the #225 sweep left `"unknown"`, which drops
+      # the *whole plot* to a static image (#176). Measured on ggplot2
+      # 3.4.4, thirty points, `save_html()`:
+      #
+      #     geom_point()                     interactive SVG   52,708 bytes
+      #     geom_point() + geom_polygon()    base64 image      30,913 bytes
+      #
+      # Read rather than skipped, which #225 asked for explicitly: every
+      # geom skipped today carries no observations, and a polygon's
+      # vertices are rows the author supplied. Skipping one that is the data
+      # would drop it silently -- worse than the picture, because the reader
+      # is not told anything is missing.
+      #
+      # `class(...)[1]` as everywhere else in this dispatch, and here it
+      # does work: `GeomMap` inherits `GeomPolygon` -- measured, `GeomMap <
+      # GeomPolygon < Geom` -- so an `inherits()` test would claim the map
+      # layers #225 puts out of scope. `GeomViolin` and `GeomCrossbar` draw
+      # *through* `GeomPolygon` without inheriting it, so they never reach
+      # here at all; what they leave behind is grob names this layer's own
+      # search has to tell apart, which is the polygon processor's problem
+      # rather than this branch's.
+      if (geom_class == "GeomPolygon") {
+        return("polygon")
+      }
+
+      # `geom_spoke()` is `geom_segment()` reparameterised: an angle and a
+      # radius rather than an endpoint, and ggplot2's `GeomSpoke$setup_data()`
+      # turns the pair into the `xend`/`yend` the segment branch already
+      # reads. It is a `GeomSegment` *subclass* -- measured, `GeomSpoke <
+      # GeomSegment < Geom` -- and still needs naming here, because this
+      # dispatch matches `class(geom)[1]` rather than asking `inherits()`.
+      # So it is dispatched here rather than given a rule of its own, and
+      # doing so decides nothing new -- it makes two spellings of one mark
+      # behave alike. Measured on ggplot2 3.4.4:
+      #
+      #     geom_spoke(angle = 0.5, radius = 0.3)   spans lanes FALSE
+      #     geom_spoke(angle = 0,   radius = r)     spans lanes TRUE
+      #
+      # An angled spoke is not a set of lanes and stays "unknown", exactly as
+      # the segment spelling of the same chart would; a flat one is a gantt
+      # written the other way round, a lane per y running from x to x + r,
+      # and was costing its chart every bit of interactivity (#225).
+      if (geom_class %in% c("GeomSegment", "GeomCurve", "GeomSpoke")) {
+        if (self$segments_span_lanes(layer, plot_object)) {
+          return("gantt")
+        }
+        return(self$unread_layer_type(layer, plot_object))
+      }
+
+      # #197's other half. `geom_rect()` draws gantt charts, and nothing in
+      # the rectangles says when it did. Five structural candidates were
+      # measured against the issue's eight charts, reading real
+      # `ggplot_build(p)$data[[i]]` frames on ggplot2 3.4.4 -- `parts` is
+      # "the bands on y are pairwise identical or disjoint", `nb` the number
+      # of distinct bands, `nsx` the number of distinct x intervals:
+      #
+      #   chart                            n  nb nsx lattice parts | R1 R2 R3 R6 R7 | wanted
+      #   gantt (the target)               4  3   4   FALSE  TRUE  |  T  T  T  T  T | gantt
+      #   gantt, tasks overlapping in x    3  3   3   FALSE  TRUE  |  T  T  T  T  T | gantt
+      #   gantt, varying bar heights       3  3   3   FALSE  TRUE  |  T  T  F  T  F | gantt
+      #   single annotate('rect')          1  1   1   TRUE   TRUE  |  T  F  F  F  F | NOT
+      #   two-region highlight (1 layer)   2  2   2   FALSE  TRUE  |  T  T  T  T  T | NOT
+      #   waterfall (lanes on x)           4  4   4   FALSE  FALSE |  F  F  F  F  F | NOT
+      #   heatmap via geom_rect            9  3   3   TRUE   TRUE  |  T  T  T  F  F | NOT
+      #   heatmap with one cell missing    8  3   3   FALSE  TRUE  |  T  T  T  T  T | NOT
+      #   ------------------------------------------------------------------------
+      #   correct                                                 |  4  5  4  6  5 | / 8
+      #
+      # R1, R2 and R3 each claim the `geom_rect()` heatmap, which the issue
+      # lists as a must-not-claim. R6 refuses that one and claims the gappy
+      # heatmap instead, and every candidate claims the two-region highlight
+      # -- decoration announced as data, the one outcome the issue would not
+      # accept. And two further charts, measured the same way, close the gap
+      # for good:
+      #
+      #   waterfall, equal increments      3  3   3   FALSE  TRUE  |  T  T  T  T  T | NOT
+      #   gantt, all tasks equal duration  3  3   3   FALSE  TRUE  |  T  T  T  T  T | gantt
+      #
+      # A waterfall whose steps are all the same size and a schedule whose
+      # tasks all take the same time agree in every column, so all five rules
+      # claim both, and one of them is a chart the issue forbids. They are
+      # the *same rectangles*: the information is not in the geometry at all,
+      # so no predicate over `(xmin, xmax, ymin, ymax)` can be right.
+      #
+      # So the reading is asked of the author, which is the same question
+      # `layer_is_annotation()` asks put the other way up: `annotate()` is
+      # ggplot2's word for "this is decoration" and `maidr_gantt()` is
+      # maidr's word for "this is a schedule".
+      #
+      # The cost of that is a hole, and it is deliberate: `maidr_gantt(aes(
+      # xmin = i - .5, xmax = i + .5, ymin = j - .5, ymax = j + .5))` over
+      # heatmap data is announced as a schedule, because the author said so
+      # and the package believes them. Any guard strong enough to catch it is
+      # one of the rules the table above falsifies. The wrong answer is
+      # pinned in `tests/testthat/test-gantt-rect.R`.
+      #
+      # An undeclared rect layer gets exactly what the fall-through at the
+      # end of this function gives it, so no reading that exists today moves:
+      # measured `before=unknown after=unknown` for a bare `geom_rect()`
+      # gantt, a waterfall, a `geom_rect()` heatmap and a two-region
+      # highlight, and `before=skip after=skip` for `annotate("rect")`, which
+      # returned above. Not `"skip"` for the rest, for the reason the
+      # `GeomPolygon` branch already gives: a band's four coordinate columns
+      # are rows the author supplied, and skipping one that is the data drops
+      # it silently -- worse than the picture, because the reader is not told
+      # anything is missing.
+      #
+      # `class(...)[1]` as everywhere else in this dispatch, and here it is
+      # load-bearing: measured, `inherits(geom, "GeomRect")` is TRUE for
+      # `GeomTile`, `GeomBar` and `GeomCol`, so an `inherits()` test would
+      # take the heatmap, the bar chart and the column chart. (`GeomRaster`
+      # does not inherit it at all.) `GeomRectCS`, the candlestick body,
+      # inherits it too -- measured against tidyquant 1.0.12:
+      # `inherits(GeomRectCS, "GeomRect")` is TRUE while
+      # `class(GeomRectCS)[1]` is `"GeomRectCS"`, which is why the first
+      # class is what keeps a candlestick out of this branch.
+      #
+      # The `stat_class` guard exists because this branch sits *above* the
+      # two candlestick branches below, which answer on either the geom or
+      # the stat. Without it a layer pairing plain `GeomRect` with
+      # `StatRectCS` or `StatLinerangeBC` would be answered here instead,
+      # and measured on synthetic layers that is `candlestick -> unknown`
+      # and `skip -> unknown` -- and `skip -> unknown` is the damaging
+      # direction, because `unknown` is what makes
+      # `has_unsupported_layers()` true and drops the whole plot to a static
+      # image. No real chart reaches it, measured on tidyquant 1.0.12 rather
+      # than read off its source -- every layer either function builds pairs
+      # those stats with a geom of its own, never with plain `GeomRect`:
+      #
+      #     geom_candlestick()  GeomLinerangeBC / StatLinerangeBC
+      #                         GeomRectCS      / StatRectCS
+      #     geom_barchart()     GeomLinerangeBC / StatLinerangeBC
+      #                         GeomSegmentBC   / StatSegmentLeftBC
+      #                         GeomSegmentBC   / StatSegmentRightBC
+      #
+      # (so `StatRectCS` is `geom_candlestick()`'s alone; `geom_barchart()`
+      # draws its bodies as segments.) The guard is here so that nothing
+      # this branch can be handed changes answer, not because the case is
+      # reachable -- and with tidyquant installed, the existing
+      # `test-ggplot2-candlestick-layer-processor.R` asks `detect_layer_type()`
+      # of both real layers and still gets `candlestick` and `skip`.
+      if (geom_class == "GeomRect" &&
+        !stat_class %in% c("StatRectCS", "StatLinerangeBC")) {
+        if (layer_is_declared_gantt(layer) &&
+          self$rect_spans_lanes(layer, plot_object)) {
+          return("gantt")
+        }
+        return(self$unread_layer_type(layer, plot_object))
+      }
+
+      # A ROC curve is a path of rates, and a path carries no evidence of
+      # what it means except its column names. `maidr_roc()` draws with a
+      # geom of its own, which is the declaration; and two producers name
+      # their columns after the rates themselves -- `pROC::ggroc()` and
+      # `autoplot()` of a `yardstick::roc_curve()` -- which is the claim
+      # `layer_maps_roc_rates()` reads. Before the line branch, because both
+      # are paths and the line branch would claim them first.
+      #
+      # Both fall back to `line` while the bundled maidr.js predates the
+      # trace: emitted to a bundle without it the chart renders nothing at
+      # all, and the two idioms are detected without any change on the
+      # author's side, so a chart that rendered as a line yesterday must not
+      # go blank today. See `roc_trace_available()`.
+      if (geom_class == "GeomRoc") {
+        return(if (roc_trace_available()) "roc" else "line")
+      }
+      if (geom_class %in% c("GeomLine", "GeomPath") &&
+        layer_maps_roc_rates(layer, plot_object)) {
+        return(if (roc_trace_available()) "roc" else "line")
+      }
+
       if (geom_class %in% c("GeomLine", "GeomPath", "GeomMA")) {
         return("line")
       }
-      if (geom_class == "GeomSmooth" || stat_class == "StatDensity") {
+      # `GeomFunction` *is* a `GeomPath`, but the branch above matches the
+      # first class name and so misses the subclass -- which is why the chart
+      # fell through to the static-image fallback entirely (#202). It reads as
+      # `smooth` rather than `line` for the reason `StatDensity` does: the
+      # curve is sampled from a function at `n` renderer-chosen points, so
+      # there are no observations to announce and the sample count is a
+      # drawing parameter.
+      #
+      # Claimed only when the smooth processor can read the geom. A stat can
+      # name one it cannot -- `stat_function(fun = sin, geom = "point")` --
+      # and the processor then rejected the layer, found nothing in its
+      # fallback search and stopped the render outright rather than
+      # declining. `save_html()` raised; the caller's script stopped (#230).
+      # Declining here instead lets the layer fall through to the branch for
+      # the geom it was actually drawn with, so a function drawn as points
+      # reads as the scatter on the page. That loses "this is a fit, not
+      # observations" for those spellings, which is worth less than a chart
+      # that renders.
+      if ((geom_class == "GeomFunction" || stat_class == "StatFunction") &&
+            smooth_reads_geom(layer$geom)) {
         return("smooth")
+      }
+      # `GeomQuantile` is a `GeomPath` too, so it reached the line branch's
+      # name check, matched nothing, and took its chart down with it -- the
+      # third geom to be missed for being a subclass of a read one, after
+      # `GeomFunction` (#202) and `GeomSpoke` (#225). Measured on thirty
+      # points with a quantile layer that draws:
+      #
+      #     geom_point()                            interactive   50,409 bytes
+      #     geom_point() + a GeomQuantile layer     base64 image  44,724 bytes
+      #     geom_point() + geom_smooth(se = FALSE)  interactive   57,823 bytes
+      #
+      # `smooth` rather than `line` for the reason `StatFunction` is:
+      # `stat_quantile()` fits `rq`/`rqss` and evaluates it at
+      # renderer-chosen positions, exactly as `stat_smooth()` does for the
+      # conditional mean, so the curve is a model over the data rather than
+      # a series of it. Reading it as a line would announce a fit as
+      # observations (#229).
+      # Keyed on the geom alone, deliberately. `StatQuantile` would have been
+      # the symmetric addition beside `StatDensity` and is not needed: what a
+      # stat check buys is the spellings where the geom says nothing, and
+      # `smooth_reads_geom` now turns those away anyway when the processor
+      # cannot read them (#230).
+      if ((geom_class %in% c("GeomSmooth", "GeomQuantile") ||
+             stat_class == "StatDensity") &&
+            smooth_reads_geom(layer$geom)) {
+        # A quantile layer that drew nothing keeps the answer #227 gave it.
+        # `geom_quantile()` without quantreg is the case that rule was
+        # written for -- it is named in `layer_drew_nothing()`'s own docs --
+        # and claiming it regardless would put an empty `smooth` layer in the
+        # schema for a chart that had none: a series a reader can walk into
+        # and find nothing in, which is #421's shape. Caught in review on
+        # #231.
+        #
+        # Asked of `GeomQuantile` alone, because it is the only claim this
+        # branch newly makes and the only one that costs a second
+        # `ggplot_build()`. `geom_smooth(data = frame[0, ])` emits the same
+        # empty layer today and is left exactly as it was (#232).
+        if (geom_class == "GeomQuantile" &&
+              self$layer_drew_nothing(layer, plot_object)) {
+          return("skip")
+        }
+        return("smooth")
+      }
+
+      # A Wilkinson dot plot is a histogram drawn one dot per observation,
+      # and `GeomDotplot` is a direct `Geom` subclass rather than a relative
+      # of anything already handled -- the same shape of miss `GeomRaster`
+      # was (#193). Its own processor emits `hist`.
+      if (geom_class == "GeomDotplot") {
+        return("dotplot")
       }
 
       if (geom_class %in% c("GeomBar", "GeomCol")) {
         if (stat_class == "StatBin") {
           return("hist")
+        }
+
+        # A bar layer drawn in polar coordinates with theta on y is the
+        # idiomatic ggplot2 pie: the stack's segments wrap into wedges. It
+        # must be caught before the position checks, which would otherwise
+        # claim the very same layer as a stacked bar. A layer that spreads
+        # across several x positions is a multi-ring bullseye instead, and
+        # falls through to those very checks.
+        if (self$is_pie_coord(plot_object, layer)) {
+          return("pie")
         }
 
         if (position_class %in% c("PositionDodge", "PositionDodge2")) {
@@ -60,6 +430,16 @@ Ggplot2Adapter <- R6::R6Class(
           has_fill <- (!is.null(layer_mapping) && !is.null(layer_mapping$fill)) ||
             (!is.null(plot_mapping) && !is.null(plot_mapping$fill))
           if (has_fill) {
+            # position = "fill" rescales every category to a common height, so
+            # a segment's value is its share of that category and every bar
+            # totals 1 by construction. Reading it as a plain stacked bar
+            # announces those shares as if they were counts and implies the
+            # categories have equal totals, which is the one thing a filled
+            # bar is drawn to deny. maidr.js has carried the distinct type
+            # since SegmentedTrace began serving NORMALIZED alongside STACKED.
+            if (position_class == "PositionFill") {
+              return("stacked_normalized_bar")
+            }
             return("stacked_bar")
           }
         }
@@ -67,8 +447,24 @@ Ggplot2Adapter <- R6::R6Class(
         return("bar")
       }
 
-      if (geom_class == "GeomTile") {
+      # ggplot2 4.0 gave `geom_bin_2d()` a geom of its own, GeomBin2d, where
+      # 3.x drew it with a plain GeomTile. It is the same tile grid and still
+      # a heatmap, so both names land here. Matched by name rather than by
+      # inherits(), to match every other branch in this function and because
+      # the symbol does not exist on 3.x. The same release left
+      # `stat_summary_2d()` on GeomTile, so nothing else moves with it.
+      if (geom_class %in% c("GeomTile", "GeomBin2d", "GeomRaster")) {
         return("heat")
+      }
+
+      # `geom_hex()` bins into hexagons rather than rectangles. That is a
+      # lattice of counted cells and so nearly a heatmap, but the rows are
+      # offset by half a cell -- which is what lets hexagons tessellate, and
+      # what stops a column index from being a position. Reading it as `heat`
+      # would navigate and would put every bin past the first row on the
+      # wrong x, so it is a type of its own.
+      if (geom_class == "GeomHex") {
+        return("hexbin")
       }
 
       if (geom_class == "GeomPoint") {
@@ -96,14 +492,206 @@ Ggplot2Adapter <- R6::R6Class(
         return("candlestick")
       }
 
-      if (geom_class == "GeomText") {
+      # ggplot2's uncertainty geoms. They all compute the same interval
+      # aesthetics (ymin/ymax, or xmin/xmax when horizontal), so one processor
+      # reads every one of them.
+      #
+      # GeomCrossbar and GeomPointrange do NOT inherit GeomErrorbar, and
+      # GeomErrorbarh is its own class rather than a flipped GeomErrorbar, so
+      # this has to be a membership test rather than an inherits() check.
+      if (geom_class %in% c(
+        "GeomErrorbar", "GeomErrorbarh", "GeomLinerange",
+        "GeomPointrange", "GeomCrossbar"
+      )) {
+        return("error_bar")
+      }
+
+      # A bare `geom_ribbon()` is the other way to draw a confidence band, and
+      # the one `geom_smooth(se = TRUE)` produces when a user assembles the
+      # two halves by hand. It is not automatically an interval though:
+      # `geom_ribbon(aes(ymin = 0, ymax = y))` is an area chart, and reading
+      # that as an uncertainty would announce the whole magnitude as a bound.
+      #
+      # The baseline is what separates them, which is the same rule the Python
+      # binding draws for `fill_between`: filling from zero to one curve is an
+      # area, and anything else is the gap between two curves. Measured on a
+      # pair of ribbons -- `aes(ymin = lo, ymax = hi)` gives non-zero `ymin`,
+      # `aes(ymin = 0, ymax = y)` gives `ymin` identically zero.
+      #
+      # `class(...)[1]` rather than `inherits()`, because `GeomArea` inherits
+      # `GeomRibbon`: an area layer must keep reaching its own branch above.
+      if (geom_class == "GeomRibbon") {
+        # A zero-baseline ribbon measures a height from a baseline, which is
+        # what the area processor reads; anything else is the gap between two
+        # curves, which is an interval.
+        return(if (self$ribbon_is_area(layer, plot_object)) "area" else "error_bar")
+      }
+
+      # `geom_label()` is `geom_text()` with a rounded rectangle behind it --
+      # the same annotation, drawn twice over. But `GeomLabel` is a *sibling*
+      # of `GeomText` rather than a subclass, both direct `Geom` children, so
+      # matching the one name missed the other entirely and left it "unknown".
+      # Measured on ggplot2 3.4.4 with `save_html()`, the same three-bar chart
+      # in each row:
+      #
+      #     geom_col()                                interactive   39,116 bytes
+      #     geom_col() + geom_text(aes(label = v))    interactive   41,339 bytes
+      #     geom_col() + geom_label(aes(label = v))   base64 image  17,220 bytes
+      #
+      # Which of the two spellings the author reached for decided whether the
+      # chart kept any interactivity at all (#211). Whether either should be
+      # *read* -- as the JS core now reads a standalone `Plot.text`
+      # (xability/maidr#1106) -- is a separate question; what this settles is
+      # that they cost the same.
+      if (geom_class %in% c("GeomText", "GeomLabel")) {
         return("skip")
       }
 
-      "unknown"
+      # `geom_blank()` draws nothing at all. It exists to force a scale limit
+      # -- `geom_blank(aes(y = 0))` to include zero, `geom_blank(data = ...)`
+      # to give facets a shared range -- so it is added to charts that are
+      # otherwise entirely readable, and left "unknown" it took every one of
+      # them down to a picture: 39,116 bytes interactive against 13,380 as a
+      # base64 image, measured the same way (#211). There is no reading
+      # question in a layer with no marks.
+      if (geom_class == "GeomBlank") {
+        return("skip")
+      }
+
+      # A reference line is decoration rather than data: a target, a control
+      # limit, last year's median, a significance cutoff. It carries no
+      # observations, and the grammar has no annotation shape to put it in.
+      #
+      # Skipped rather than left "unknown", because "unknown" is what makes
+      # `has_unsupported_layers()` true and drops the *whole plot* to a static
+      # image. Measured with `save_html()`:
+      #
+      #     geom_boxplot()                     interactive SVG   44,353 bytes
+      #     geom_boxplot() + geom_hline()      base64 image      14,680 bytes
+      #
+      # A supported chart lost every bit of its interactivity to one
+      # annotation, and a threshold line is among the most ordinary things to
+      # draw on one (#176).
+      #
+      # Skipping rather than reading it is the same answer the Python binding
+      # reached in xability/py-maidr#434, and for the stronger of the two
+      # reasons: an `axhline` there announced its endpoints as 0 and 1,
+      # because a blended transform puts its coordinates in axes-fraction
+      # space rather than data space. Read as a line layer this is not a
+      # partial reading, it is a confident reading of a series that is not
+      # there. Announcing *that* a threshold is drawn, and where, is worth
+      # doing -- but it needs a grammar shape for annotations, and is not a
+      # reason to keep costing a chart everything in the meantime.
+      if (geom_class %in% c("GeomHline", "GeomVline", "GeomAbline")) {
+        return("skip")
+      }
+
+      self$unread_layer_type(layer, plot_object)
     },
 
-    #' Create an orchestrator for this system (ggplot2)
+    #' @description Check if a bar layer is drawn as pie wedges
+    #'
+    #' \code{coord_radial()} produces a CoordRadial that does NOT inherit
+    #' CoordPolar, so both class names have to be tested. \code{theta} decides
+    #' what the angle encodes: only \code{theta = "y"} maps a bar's height
+    #' onto the angle, which is a pie. \code{theta = "x"} keeps the height on
+    #' the radius, which is a coxcomb/rose - still a bar chart, just bent.
+    #'
+    #' The coordinate system alone is not enough: a polar bar layer is a pie
+    #' only when it draws ONE ring. \code{geom_col(aes(x = category))} under
+    #' \code{coord_polar("y")} draws one concentric ring per x category - a
+    #' bullseye - and a pie payload has no room for that second dimension, so
+    #' such a layer keeps the bar classification it has always had.
+    #'
+    #' @param plot_object The ggplot2 plot object
+    #' @param layer The layer being classified, or NULL for the plot's first
+    #' @return TRUE when the layer is drawn as a pie, FALSE otherwise
+    is_pie_coord = function(plot_object, layer = NULL) {
+      if (is.null(plot_object)) {
+        return(FALSE)
+      }
+
+      coord <- plot_object$coordinates
+      if (!inherits(coord, c("CoordPolar", "CoordRadial"))) {
+        return(FALSE)
+      }
+
+      if (!identical(coord$theta, "y")) {
+        return(FALSE)
+      }
+
+      self$draws_single_ring(plot_object, layer)
+    },
+
+    #' @description Check if a layer occupies a single position on x
+    #'
+    #' The ring count has to come off the BUILT data: a mapping expression
+    #' cannot say how many levels it has, and by build time ggplot2 has
+    #' already resolved every constant form - the literal \code{""}, a
+    #' one-level factor, a column holding one repeated value - to the same
+    #' single x position. Each facet panel is its own pie, so constancy is
+    #' asked of each panel separately. A build that fails answers FALSE,
+    #' leaving the layer classified the way it was before pie support.
+    #'
+    #' @param plot_object The ggplot2 plot object
+    #' @param layer The layer being classified, or NULL for the plot's first
+    #' @return TRUE when no panel holds more than one x position
+    draws_single_ring = function(plot_object, layer = NULL) {
+      layer_index <- self$find_layer_index(plot_object, layer)
+      if (is.null(layer_index)) {
+        return(FALSE)
+      }
+
+      built <- tryCatch(
+        ggplot2::ggplot_build(plot_object),
+        error = function(e) NULL
+      )
+      if (is.null(built) || length(built$data) < layer_index) {
+        return(FALSE)
+      }
+
+      built_data <- built$data[[layer_index]]
+      if (is.null(built_data$x)) {
+        return(TRUE)
+      }
+
+      panels <- if (is.null(built_data$PANEL)) {
+        rep(1L, length(built_data$x))
+      } else {
+        built_data$PANEL
+      }
+
+      all(vapply(
+        split(built_data$x, panels),
+        function(x) length(unique(x[!is.na(x)])) <= 1L,
+        logical(1)
+      ))
+    },
+
+    #' @description Locate a layer among its plot's layers
+    #' @param plot_object The ggplot2 plot object
+    #' @param layer The layer to locate, or NULL for the plot's first
+    #' @return Integer index into the plot's layers, or NULL when absent
+    find_layer_index = function(plot_object, layer = NULL) {
+      layers <- plot_object$layers
+      if (length(layers) == 0) {
+        return(NULL)
+      }
+
+      if (is.null(layer)) {
+        return(1L)
+      }
+
+      for (i in seq_along(layers)) {
+        if (identical(layers[[i]], layer)) {
+          return(i)
+        }
+      }
+
+      NULL
+    },
+
+    #' @description Create an orchestrator for this system (ggplot2)
     #' @param plot_object The ggplot2 plot object to process
     #' @return PlotOrchestrator instance
     create_orchestrator = function(plot_object) {
@@ -115,19 +703,19 @@ Ggplot2Adapter <- R6::R6Class(
       Ggplot2PlotOrchestrator$new(plot_object)
     },
 
-    #' Get the system name
+    #' @description Get the system name
     #' @return System name string
     get_system_name = function() {
       self$system_name
     },
 
-    #' Get a reference to this adapter (for use by orchestrator)
+    #' @description Get a reference to this adapter (for use by orchestrator)
     #' @return Self reference
     get_adapter = function() {
       self
     },
 
-    #' Check if plot has facets
+    #' @description Check if plot has facets
     #' @param plot_object The ggplot2 plot object
     #' @return TRUE if plot has facets, FALSE otherwise
     has_facets = function(plot_object) {
@@ -139,12 +727,353 @@ Ggplot2Adapter <- R6::R6Class(
       facet_class != "FacetNull"
     },
 
-    #' Check if plot is a patchwork plot
+    #' @description Check if plot is a patchwork plot
     #' @param plot_object The ggplot2 plot object
     #' @return TRUE if plot is patchwork, FALSE otherwise
     is_patchwork = function(plot_object) {
       inherits(plot_object, "patchwork") ||
         !is.null(attr(plot_object, "patchwork"))
+    },
+
+    #' @description Whether a ribbon fills from a baseline rather than
+    #' spanning two curves.
+    #'
+    #' `geom_ribbon(aes(ymin = 0, ymax = y))` is an area chart: the magnitude
+    #' is the height of the fill, measured from a baseline the reader can
+    #' assume. `geom_ribbon(aes(ymin = lo, ymax = hi))` draws the *gap*, and
+    #' its content is the distance between two edges rather than the height of
+    #' either -- read as an area it would announce `hi` as a magnitude and drop
+    #' `lo` entirely.
+    #'
+    #' The same distinction the Python binding draws for `fill_between()`, and
+    #' drawn the same way: only an identically-zero lower edge is an area.
+    #'
+    #' Reads the built data rather than the mapping, because `ymin` may be a
+    #' constant, a column, or a computed aesthetic, and only the built frame
+    #' has resolved which. A layer that cannot be built is treated as a band,
+    #' which is the reading that loses nothing: an area announced as an
+    #' interval still carries both edges.
+    #'
+    #' @param layer The ggplot2 layer
+    #' @param plot_object The parent plot object
+    #' @return TRUE when the ribbon is an area chart
+    ribbon_is_area = function(layer, plot_object) {
+      built <- tryCatch(
+        ggplot2::ggplot_build(plot_object),
+        error = function(e) NULL
+      )
+      if (is.null(built)) {
+        return(FALSE)
+      }
+
+      index <- self$find_layer_index(plot_object, layer)
+      if (is.null(index) || index < 1L || index > length(built$data)) {
+        return(FALSE)
+      }
+
+      rows <- built$data[[index]]
+      if (is.null(rows) || nrow(rows) == 0L || !"ymin" %in% names(rows)) {
+        return(FALSE)
+      }
+
+      lower <- rows$ymin[is.finite(rows$ymin)]
+      length(lower) > 0L && all(lower == 0)
+    },
+
+    #' @description Check whether a segment layer draws intervals in lanes
+    #'
+    #' Asked of the built data for the reason \code{ribbon_is_area()} is: a
+    #' mapping expression cannot say whether the two ends of a segment agree,
+    #' and by build time ggplot2 has resolved every spelling of the lane -- a
+    #' factor, a character column, a repeated constant -- to the position it
+    #' drew at.
+    #'
+    #' The whole layer is asked at once rather than each row, which is the
+    #' rule xability/maidr#1100 settled for the same reading: one
+    #' \code{geom_segment()} call can hold spans and edges together, and
+    #' reading three spans out of four segments would announce a gantt quietly
+    #' missing a quarter of its chart.
+    #'
+    #' @param layer The layer being classified
+    #' @param plot_object The ggplot2 plot object
+    #' @return TRUE when the layer's segments lay intervals in lanes
+    segments_span_lanes = function(layer, plot_object) {
+      built <- tryCatch(
+        ggplot2::ggplot_build(plot_object),
+        error = function(e) NULL
+      )
+      if (is.null(built)) {
+        return(FALSE)
+      }
+
+      index <- self$find_layer_index(plot_object, layer)
+      if (is.null(index) || index < 1L || index > length(built$data)) {
+        return(FALSE)
+      }
+
+      !is.null(segment_lane_axis(built$data[[index]]))
+    },
+
+    #' @description Check whether a declared rect layer draws intervals in lanes
+    #'
+    #' Asked through the *same* predicate the processor will use, so the two
+    #' cannot disagree about what a schedule is: \code{rect_gantt_frame()}
+    #' renames the declared layer's bounds into the four columns
+    #' \code{segment_lane_axis()} already reads, and the landed test decides.
+    #'
+    #' The degenerate case comes free rather than needing a rule of its own.
+    #' Measured: a declared layer whose rectangles are all zero-width
+    #' normalises to level on both axes, \code{segment_lane_axis()} returns
+    #' NULL, and the layer is refused instead of being announced as a schedule
+    #' of zero-length work -- which is the rule this file already applies to
+    #' \code{geom_segment()}.
+    #'
+    #' Nothing else is asked of the rectangles. A guard on their shape is the
+    #' structural rule the eight-chart table above the \code{GeomRect} branch
+    #' of \code{detect_layer_type()} falsified, and a veto on a layer the
+    #' author explicitly declared is near-useless anyway: measured, a declared
+    #' monotone waterfall partitions on y and would pass one.
+    #'
+    #' @param layer The layer being classified
+    #' @param plot_object The ggplot2 plot object
+    #' @return TRUE when the layer's rectangles lay intervals in lanes
+    rect_spans_lanes = function(layer, plot_object) {
+      built <- tryCatch(
+        ggplot2::ggplot_build(plot_object),
+        error = function(e) NULL
+      )
+      if (is.null(built)) {
+        return(FALSE)
+      }
+
+      index <- self$find_layer_index(plot_object, layer)
+      if (is.null(index) || index < 1L || index > length(built$data)) {
+        return(FALSE)
+      }
+
+      frame <- rect_gantt_frame(
+        built$data[[index]], layer_declared_lane_axis(layer)
+      )
+      !is.null(segment_lane_axis(frame))
+    },
+
+    #' @description The answer for a layer no branch above claimed
+    #'
+    #' \code{"unknown"} is what makes \code{has_unsupported_layers()} true and
+    #' drops the whole plot to a static image. That is right for a layer
+    #' carrying marks nothing describes: a filled \code{geom_polygon()} is
+    #' drawn, and a reader told the chart was complete would be told wrong.
+    #'
+    #' It is not right for a layer that drew nothing. Then there is no mark,
+    #' so there is nothing the reader is missing, and the chart pays
+    #' everything to protect them from an absence. Measured with
+    #' \code{save_html()} on thirty points:
+    #'
+    #' \preformatted{
+    #' geom_point()                                interactive   50,406 bytes
+    #' geom_point() + geom_point(data = d[0, ])    interactive   51,313 bytes
+    #' geom_point() + geom_polygon(data = d[0, ])  base64 image  27,368 bytes
+    #' geom_point() + geom_polygon()               base64 image  31,848 bytes
+    #' }
+    #'
+    #' Rows two and three are the same chart in every way a reader could tell
+    #' -- thirty points and a layer of nothing -- and only one of them was
+    #' interactive, because its empty layer happened to be of a \emph{kind}
+    #' this function names. Row four is the case the fallback exists for, and
+    #' it keeps falling back.
+    #'
+    #' The case this turns up in is not contrived: a missing \strong{Suggests}
+    #' package. \code{geom_quantile()} without \pkg{quantreg} warns, computes
+    #' no rows and draws nothing; ggplot2 carries on and r-maidr turned the
+    #' whole figure into a picture, with no second warning connecting the two
+    #' (#227).
+    #'
+    #' A plot made only of such layers still falls back, for the reason #176
+    #' gives: \code{has_unsupported_layers()} is true when \emph{every} layer
+    #' is \code{"skip"} as well, so "nothing unsupported" cannot quietly come
+    #' to mean "nothing at all".
+    #'
+    #' Nothing here decides which geoms are readable. A \code{geom_polygon()}
+    #' with data in it is still \code{"unknown"} and still costs its chart
+    #' exactly what it costs today.
+    #'
+    #' @param layer The layer being classified
+    #' @param plot_object The ggplot2 plot object
+    #' @return \code{"skip"} when the layer drew no rows, \code{"unknown"}
+    #'   otherwise
+    unread_layer_type = function(layer, plot_object) {
+      if (self$layer_drew_nothing(layer, plot_object)) "skip" else "unknown"
+    },
+
+    #' @description Whether a layer put no mark on the page at all
+    #'
+    #' A layer's rows can vanish in its input, in a filter, in an aggregate
+    #' over no groups, or -- the case #227 was found through -- in a stat that
+    #' could not run because a \strong{Suggests} package is absent. All four
+    #' arrive here identically: \code{ggplot_build()} reports zero rows for
+    #' that layer while ggplot2 warns, draws the rest of the chart and carries
+    #' on.
+    #'
+    #' Asked by \code{unread_layer_type()}, which turns it into \code{"skip"}
+    #' rather than \code{"unknown"}, and by the quantile branch of
+    #' \code{detect_layer_type()}, which uses it to keep from claiming a
+    #' curve that was never drawn (#229). Kept as its own method for that
+    #' second caller: a rule two branches ask is a rule, not a fall-through.
+    #'
+    #' Declines whenever the build cannot answer -- it raised, or gave this
+    #' layer no frame. Absent is not empty: a build that said nothing about
+    #' what a layer drew must not have that read as "it drew nothing", which
+    #' would wave a mark through as harmless.
+    #'
+    #' @param layer The layer being asked about
+    #' @param plot_object The ggplot2 plot object
+    #' @return TRUE when the layer built no rows
+    layer_drew_nothing = function(layer, plot_object) {
+      built <- tryCatch(
+        ggplot2::ggplot_build(plot_object),
+        error = function(e) NULL
+      )
+      if (is.null(built)) {
+        return(FALSE)
+      }
+
+      index <- self$find_layer_index(plot_object, layer)
+      if (is.null(index) || index < 1L || index > length(built$data)) {
+        return(FALSE)
+      }
+
+      # `isTRUE` rather than a bare comparison, so that absent is not read as
+      # empty: `nrow(NULL)` is `NULL`, and `NULL == 0L` is `logical(0)` rather
+      # than either answer. It declines without a branch of its own, which
+      # would be one no chart can reach and so no test can hold.
+      isTRUE(nrow(built$data[[index]]) == 0L)
     }
   )
 )
+
+
+#' Whether a layer was drawn by \code{annotate()} rather than by a geom
+#'
+#' \code{annotate()} is ggplot2's word for decoration: a highlighted region, a
+#' label, an arrow pointing at something. Whatever geom it happens to use, the
+#' function is the author saying "this is not data".
+#'
+#' ggplot2 records which function built each layer, so this is exact rather
+#' than a guess about geometry. Measured on ggplot2 3.4.4, \code{layer$constructor}
+#' holds the matched call and its head is the function name:
+#'
+#' \preformatted{
+#' geom_rect(aes(...))                       -> geom_rect
+#' annotate("rect", xmin = 2, xmax = 3, ...) -> annotate
+#' annotate("text", x = 2, y = 3, ...)       -> annotate
+#' }
+#'
+#' It survives disguise, which is what makes it better than the shape-based
+#' rules considered in #197. \code{annotate()} sets \code{inherit.aes = FALSE}
+#' and \code{show.legend = FALSE}, so those two look like a signature -- but a
+#' \code{geom_rect()} written with both still reports \code{geom_rect}, and a
+#' rule keyed on them would call that user's data decoration.
+#'
+#' Deliberately not a rule about *what* an annotation may draw. The whole point
+#' of asking the constructor is that the answer does not depend on the mark:
+#' \code{annotate("segment")} is an arrow, not a schedule, and a geometry test
+#' would have to claim or refuse it on its coordinates.
+#'
+#' A layer with no \code{constructor} -- a ggplot2 that stopped recording it,
+#' or a layer built by hand -- answers FALSE and keeps whatever reading it had.
+#'
+#' @param layer A ggplot2 layer object
+#' @return TRUE when \code{annotate()} built the layer
+#' @keywords internal
+layer_is_annotation <- function(layer) {
+  if (is.null(layer)) {
+    return(FALSE)
+  }
+  constructor <- layer$constructor
+  if (is.null(constructor) || !is.call(constructor)) {
+    return(FALSE)
+  }
+  head <- tryCatch(as.character(constructor[[1]]), error = function(e) character(0))
+  # `ggplot2::annotate(...)` heads as c("::", "ggplot2", "annotate"), so the
+  # test is on membership rather than on the whole vector being one name.
+  isTRUE("annotate" %in% head)
+}
+
+
+#' Whether a layer's author declared it a schedule
+#'
+#' \code{maidr_gantt()} is maidr's word for "these rectangles are intervals in
+#' lanes", the way \code{annotate()} is ggplot2's word for "this is
+#' decoration". A rectangle layer carries no evidence of which it is -- the
+#' eight-chart table above the \code{GeomRect} branch in
+#' \code{detect_layer_type()} is the measurement that closed every structural
+#' rule -- so the function the author called is the answer rather than
+#' evidence towards it.
+#'
+#' Two carriers are read, field first, because they fail in opposite
+#' directions. Measured on ggplot2 3.4.4:
+#'
+#' \preformatted{
+#' maidr_gantt(m)                  head=maidr_gantt         field=gantt
+#' maidr::maidr_gantt(m)           head=::/maidr/maidr_gantt field=gantt
+#' one-deep user wrapper           head=maidr_gantt         field=gantt
+#' two-deep user wrapper           head=maidr_gantt         field=gantt
+#' do.call(maidr_gantt, list(m))   head=<coerce error>      field=gantt
+#' geom_rect(m)                    head=geom_rect           field=NULL
+#' annotate("rect", ...)           head=annotate            field=NULL
+#' }
+#'
+#' \code{do.call()} leaves the closure itself at \code{constructor[[1]]},
+#' where \code{as.character()} raises "cannot coerce type 'closure' to vector
+#' of type 'character'" -- the identical hole \code{layer_is_annotation()}
+#' has for \code{do.call(annotate, ...)} -- and the field answers there. The
+#' constructor answers for a ggplot2 that re-instantiated the layer through
+#' \code{ggproto()} and dropped a field it did not know. Both are wrapped, so
+#' a layer that answers neither is refused rather than raising.
+#'
+#' Membership rather than equality on the head, for the reason
+#' \code{layer_is_annotation()} gives: \code{maidr::maidr_gantt(...)} heads
+#' as \code{c("::", "maidr", "maidr_gantt")}.
+#'
+#' @param layer A ggplot2 layer object
+#' @return TRUE when \code{maidr_gantt()} built the layer
+#' @keywords internal
+layer_is_declared_gantt <- function(layer) {
+  if (is.null(layer)) {
+    return(FALSE)
+  }
+
+  declared <- tryCatch(layer$maidr_type, error = function(e) NULL)
+  if (identical(declared, "gantt")) {
+    return(TRUE)
+  }
+
+  constructor <- tryCatch(layer$constructor, error = function(e) NULL)
+  if (is.null(constructor) || !is.call(constructor)) {
+    return(FALSE)
+  }
+  head <- tryCatch(as.character(constructor[[1]]), error = function(e) character(0))
+  isTRUE("maidr_gantt" %in% head)
+}
+
+
+#' Which axis a declared schedule runs its lanes up
+#'
+#' \code{maidr_gantt(lane_axis = )} is an argument rather than an inference,
+#' and this reads it back. \code{"y"} when the author said nothing, which is
+#' the ordinary horizontal schedule: lanes stacked up y, spans running along
+#' x. Also \code{"y"} when only the constructor survived -- the lane axis
+#' cannot be recovered from a call whose argument may be a variable -- which
+#' matches the default the author most likely took.
+#'
+#' @param layer A ggplot2 layer object
+#' @return \code{"y"} or \code{"x"}
+#' @keywords internal
+layer_declared_lane_axis <- function(layer) {
+  axis <- tryCatch(layer$maidr_lane_axis, error = function(e) NULL)
+  if (is.character(axis) && length(axis) == 1L && axis %in% c("x", "y")) {
+    axis
+  } else {
+    "y"
+  }
+}

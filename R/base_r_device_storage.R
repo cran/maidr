@@ -37,6 +37,36 @@ get_device_storage <- function(device_id = grDevices::dev.cur()) {
   .maidr_base_r_session$devices[[key]]
 }
 
+#' Keep the title chartSeries() would have given the call it was made from
+#'
+#' Without a `name`, `quantmod::chartSeries()` titles the chart with the
+#' expression its `x` was written as (`as.character(match.call()["x"])`), so
+#' `chartSeries(AAPL)` is titled "AAPL". The call is replayed later with the
+#' recorded value in place of that expression, and the title became the
+#' series' numbers printed end to end. The name is taken from the call as
+#' written, the way quantmod takes it, and recorded as an explicit `name`.
+#'
+#' @param args The recorded arguments of the chartSeries() call
+#' @param call_expr The call as written
+#' @return `args`, with `name` added when the caller gave none
+#' @keywords internal
+record_chartseries_name <- function(args, call_expr) {
+  keep <- !is.null(args[["name"]]) || !is.call(call_expr) ||
+    !requireNamespace("quantmod", quietly = TRUE)
+  if (keep) {
+    return(args)
+  }
+  matched <- tryCatch(
+    match.call(quantmod::chartSeries, call_expr),
+    error = function(e) NULL
+  )
+  if (is.null(matched) || is.null(matched[["x"]])) {
+    return(args)
+  }
+  args[["name"]] <- as.character(matched["x"])
+  args
+}
+
 #' Log Plot Call to Device Storage
 #'
 #' Records a plot call in the device-specific storage.
@@ -45,15 +75,22 @@ get_device_storage <- function(device_id = grDevices::dev.cur()) {
 #' @param call_expr The call expression
 #' @param args List of function arguments
 #' @param device_id Graphics device ID
+#' @param call_env Optional environment for replaying unevaluated (NSE)
+#'   arguments recorded in \code{args}
 #' @return NULL (invisible)
 #' @keywords internal
 log_plot_call_to_device <- function(
     function_name,
     call_expr,
     args,
-    device_id = grDevices::dev.cur()) {
+    device_id = grDevices::dev.cur(),
+    call_env = NULL) {
   class_level <- classify_function(function_name)
   storage <- get_device_storage(device_id)
+  formula <- recorded_formula(args, call_env)
+  if (identical(function_name, "chartSeries")) {
+    args <- record_chartseries_name(args, call_expr)
+  }
 
   call_entry <- list(
     function_name = function_name,
@@ -61,7 +98,14 @@ log_plot_call_to_device <- function(
     args = args,
     class_level = class_level,
     timestamp = Sys.time(),
-    device_id = device_id
+    device_id = device_id,
+    call_env = call_env,
+    # Resolved now rather than at render time. A formula is the one recorded
+    # argument that is a reference rather than a value, so a reader that
+    # resolved it later would read whatever the names are bound to *then* --
+    # see `recorded_formula_frame()` for the measurement (#254).
+    formula = formula,
+    formula_frame = recorded_formula_frame(args, call_env, formula)
   )
 
   storage$calls <- append(storage$calls, list(call_entry))

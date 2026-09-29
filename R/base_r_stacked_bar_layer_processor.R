@@ -9,33 +9,70 @@ BaseRStackedBarLayerProcessor <- R6::R6Class(
   "BaseRStackedBarLayerProcessor",
   inherit = LayerProcessor,
   public = list(
+    #' @description Process the layer: read its data, selectors, axis titles and main title from
+    #'   the recorded call
+    #' @param plot Unused; present for the processor interface
+    #' @param layout Unused; present for the processor interface
+    #' @param built Unused; present for the processor interface
+    #' @param gt Gtable of the replayed drawing, searched for selectors (optional)
+    #' @param grob_id Unused; present for the processor interface
+    #' @param panel_id Unused; present for the processor interface
+    #' @param panel_ctx Unused; present for the processor interface
+    #' @param layer_info Layer information with the recorded call
+    #' @return List describing the layer for the MAIDR payload
     process = function(plot,
                        layout,
                        built = NULL,
                        gt = NULL,
-                       scale_mapping = NULL,
                        grob_id = NULL,
                        panel_id = NULL,
                        panel_ctx = NULL,
                        layer_info = NULL) {
       data <- self$extract_data(layer_info)
-      selectors <- self$generate_selectors(layer_info, gt)
+      selectors <- self$generate_selectors(layer_info, gt, data)
 
       axes <- self$extract_axis_titles(layer_info)
       title <- self$extract_main_title(layer_info)
 
+      # `extract_data()` reads the matrix the caller passed, so its points are
+      # in the vertical arrangement whichever way the bars were drawn --
+      # unlike the plain bar processor, which reads the drawn rectangles and
+      # so comes out swapped for free. Both halves therefore have to be set
+      # here, and from the one answer: a `"horz"` key over vertical points is
+      # the combination #184 was about, and these charts read correctly today
+      # only because both were left vertical (#189).
+      horizontal <- self$is_horizontal_call(layer_info)
+
       list(
-        data = data,
+        data = if (horizontal) self$swap_point_axes(data) else data,
         selectors = selectors,
-        type = "stacked_bar",
+        orientation = if (horizontal) "horz" else "vert",
+        # A 100% stacked bar is extracted by this same processor -- the values
+        # are already the drawn shares, since base R has no `position = "fill"`
+        # and the author normalised the matrix before calling `barplot()`. Only
+        # the emitted type differs, so read it rather than hardcoding one.
+        type = if (identical(self$layer_info$type, "stacked_normalized_bar")) {
+          "stacked_normalized_bar"
+        } else {
+          "stacked_bar"
+        },
         title = title,
         axes = axes,
-        domMapping = list(groupDirection = "forward")
+        # `barplot()` draws category by category, first series first, and
+        # the bundled maidr.js pairs a flat rect list with the grid series
+        # by series unless the layer says `order = "column"`.
+        domMapping = list(order = "column", groupDirection = "forward")
       )
     },
+    #' @description Whether the plot data must be reordered before drawing; a Base R layer is read
+    #'   from the recorded call and never is
+    #' @return FALSE
     needs_reordering = function() {
       FALSE
     },
+    #' @description One series per row of the recorded height matrix
+    #' @param layer_info Layer information with the recorded call
+    #' @return List of series
     extract_data = function(layer_info) {
       if (is.null(layer_info)) {
         return(list())
@@ -44,10 +81,7 @@ BaseRStackedBarLayerProcessor <- R6::R6Class(
       plot_call <- layer_info$plot_call
       args <- plot_call$args
 
-      height <- args$height
-      if (is.null(height) && length(args) > 0) {
-        height <- args[[1]]
-      }
+      height <- recorded_barplot_height(args)
 
       if (is.null(height) || !is.matrix(height)) {
         return(list())
@@ -90,31 +124,65 @@ BaseRStackedBarLayerProcessor <- R6::R6Class(
 
       data
     },
+    #' @description Extract the axis titles for this layer
+    #'
+    #' A stacked `barplot()` records no title unless the author wrote one, and
+    #' its points always carry the column category on x and the segment height
+    #' on y, so the defaults name those two. The stack's own dimension is
+    #' already announced per point as z; nothing in the call names the
+    #' variable those groups came from, so no z title is claimed.
+    #'
+    #' @param layer_info Layer information
+    #' @return Canonical axes list
     extract_axis_titles = function(layer_info) {
-      if (is.null(layer_info)) {
-        return(build_axes(x = "", y = ""))
-      }
-      args <- layer_info$plot_call$args
-      x_title <- if (!is.null(args$xlab)) args$xlab else ""
-      y_title <- if (!is.null(args$ylab)) args$ylab else ""
-      build_axes(x = x_title, y = y_title)
+      base_r_categorical_axes(layer_info$plot_call$args)
     },
+    #' @description The main title of the recorded call, or an empty string
+    #' @param layer_info Layer information with the recorded call
+    #' @return Character string
     extract_main_title = function(layer_info) {
       if (is.null(layer_info)) {
         return("")
       }
       args <- layer_info$plot_call$args
-      if (!is.null(args$main)) args$main else ""
+      recorded_main_title(args)
     },
-    generate_selectors = function(layer_info, gt = NULL) {
+    #' @description The selector for the segments, scoped to this layer's plot group
+    #' @param layer_info Layer information with the recorded call
+    #' @param gt Gtable of the replayed drawing (optional)
+    #' @param extracted_data The data already extracted for this layer (optional)
+    #' @return List of selectors
+    generate_selectors = function(layer_info, gt = NULL, extracted_data = NULL) {
       if (is.null(layer_info) || is.null(gt)) {
         return(list())
       }
 
-      call_index <- layer_info$index
+      # gridSVG numbers grobs by plot group (panel), not by maidr layer
+      call_index <- if (!is.null(layer_info$group_index)) {
+        layer_info$group_index
+      } else {
+        layer_info$index
+      }
       rect_groups <- self$find_rect_groups(gt, call_index)
       if (length(rect_groups) == 0) {
         return(list())
+      }
+
+      # Order groups by their trailing grob number (drawing order) and
+      # keep only the data groups: barplot() draws one rect group per
+      # x category FIRST; legend.text adds extra rect groups (border,
+      # swatches) afterwards which must not be highlight targets.
+      group_numbers <- suppressWarnings(
+        as.integer(sub(".*-([0-9]+)$", "\\1", rect_groups))
+      )
+      rect_groups <- rect_groups[order(group_numbers)]
+      n_categories <- if (length(extracted_data) > 0) {
+        length(extracted_data[[1]])
+      } else {
+        0
+      }
+      if (n_categories > 0 && length(rect_groups) > n_categories) {
+        rect_groups <- rect_groups[seq_len(n_categories)]
       }
 
       # Compose a single selector string that lists all rect groups
@@ -128,6 +196,10 @@ BaseRStackedBarLayerProcessor <- R6::R6Class(
 
       list(selectors)
     },
+    #' @description Find every rect group drawn by the plot group at `call_index`
+    #' @param grob The grob tree to search
+    #' @param call_index Index of the recorded plot group, which numbers the panel's grobs
+    #' @return Character vector of grob names
     find_rect_groups = function(grob, call_index) {
       names <- character(0)
 

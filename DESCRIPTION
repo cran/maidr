@@ -1,10 +1,10 @@
 Package: maidr
 Type: Package
 Title: Multimodal Access and Interactive Data Representation
-Version: 0.4.0
+Version: 0.5.0
 Authors@R: c(
-    person("JooYoung", "Seo", email = "jseo1005@illinois.edu", role = c("aut", "cph")),
-    person("Niranjan", "Kalaiselvan", email = "nk46@illinois.edu", role = c("aut", "cre"))
+    person("JooYoung", "Seo", email = "jseo1005@illinois.edu", role = c("aut", "cph", "cre")),
+    person("Niranjan", "Kalaiselvan", email = "nk46@illinois.edu", role = c("aut"))
     )
 URL: https://github.com/xability/r-maidr, https://r.maidr.ai/
 BugReports: https://github.com/xability/r-maidr/issues
@@ -12,28 +12,34 @@ Description: Provides accessible, interactive visualizations through the 'MAIDR'
     (Multimodal Access and Interactive Data Representation) system. Converts
     'ggplot2' and Base R plots into accessible HTML/SVG formats with keyboard
     navigation, screen reader support, and 'sonification' capabilities. Supports
-    bar charts (simple, grouped, stacked), histograms, line plots, scatter plots,
-    box plots, violin plots, candlestick (OHLC) charts, heat maps,
-    density/smooth curves, faceted plots,
-    multi-panel layouts (including patchwork), and multi-layered plot combinations. Enables
+    bar charts (simple, grouped, stacked), pie charts, histograms, line plots,
+    step plots, scatter plots, box plots, violin plots, candlestick (OHLC)
+    charts, heat maps, density/smooth curves, faceted plots,
+    multi-panel layouts (including patchwork), and multi-layered plot combinations.
+    Also makes 'plotly', 'highcharter' and 'echarts4r' 'htmlwidgets' accessible
+    by attaching the matching 'MAIDR' JavaScript adapter. Enables
     data exploration for users with visual impairments through multiple sensory
     modalities. For more details see the 'MAIDR' project
     <https://maidr.ai/>.
 License: GPL (>= 3)
 Encoding: UTF-8
-Depends: R (>= 3.5.0)
-Imports: base64enc, curl, ggplot2, ggplotify, grid, gridSVG, htmltools,
-        htmlwidgets, jsonlite, shiny, xml2, rlang, R6
+Language: en
+Depends: R (>= 4.0.0)
+Imports: base64enc, curl, ggplot2, ggplotify, grid, htmltools,
+        htmlwidgets, jsonlite, methods, shiny, stats, svglite (>=
+        2.1.1), xml2, rlang, R6
 Suggests: testthat (>= 3.0.0), lintr, styler, goodpractice, cyclocomp,
-        knitr, rmarkdown, quarto, patchwork, tidyquant, quantmod, TTR,
-        zoo, xts
+        knitr, rmarkdown, quarto, patchwork, scales, tibble, tidyquant,
+        quantmod, TTR, zoo, xts, pkgload, hexbin, vioplot, wordcloud,
+        sm, gridGraphics, pROC, yardstick, plotly, highcharter,
+        echarts4r
 Config/testthat/edition: 3
-RoxygenNote: 7.3.2
 VignetteBuilder: knitr
+Config/roxygen2/version: 8.1.0
 NeedsCompilation: no
-Packaged: 2026-07-10 02:24:40 UTC; niranjank
-Author: JooYoung Seo [aut, cph],
-  Niranjan Kalaiselvan [aut, cre]
-Maintainer: Niranjan Kalaiselvan <nk46@illinois.edu>
+Packaged: 2026-09-29 02:29:16 UTC; jseo1005
+Author: JooYoung Seo [aut, cph, cre],
+  Niranjan Kalaiselvan [aut]
+Maintainer: JooYoung Seo <jseo1005@illinois.edu>
 Repository: CRAN
-Date/Publication: 2026-07-10 07:30:20 UTC
+Date/Publication: 2026-09-29 21:20:22 UTC

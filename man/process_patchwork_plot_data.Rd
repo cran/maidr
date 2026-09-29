@@ -2,32 +2,24 @@
 % Please edit documentation in R/ggplot2_patchwork_utils.R
 \name{process_patchwork_plot_data}
 \alias{process_patchwork_plot_data}
-\title{Patchwork Processing Utilities}
+\title{Process a patchwork plot and return organized subplot data}
 \usage{
-process_patchwork_plot_data(plot, layout, gtable)
+process_patchwork_plot_data(plot, layout, gtable, original_plot = NULL)
 }
 \arguments{
-\item{plot}{The patchwork plot object}
+\item{plot}{The patchwork plot object, with leaves already augmented}
 
 \item{layout}{Layout information}
 
 \item{gtable}{Gtable object}
+
+\item{original_plot}{The un-augmented composition. Supplied so each leaf is
+processed for the layers the user wrote rather than for the extra geoms a
+processor injected to render its selectors.}
 }
 \value{
 List with organized subplot data in 2D grid format
 }
 \description{
-Utility functions for processing patchwork multipanel compositions.
-These functions handle panel discovery, leaf extraction, and processing
-for patchwork plots in a unified way.
+Process a patchwork plot and return organized subplot data
 }
-\keyword{Process}
-\keyword{a}
-\keyword{and}
-\keyword{data}
-\keyword{internal}
-\keyword{organized}
-\keyword{patchwork}
-\keyword{plot}
-\keyword{return}
-\keyword{subplot}

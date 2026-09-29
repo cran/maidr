@@ -1,7 +1,7 @@
 ---
 title: "Using MAIDR in Shiny Applications"
 author: "JooYoung Seo"
-date: "`r Sys.Date()`"
+description: "Serve accessible, sonified ggplot2 and Base R plots inside Shiny apps with maidr_output() and render_maidr(), including reactive inputs and multiple plots per page."
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Using MAIDR in Shiny Applications}
@@ -434,6 +434,6 @@ When deploying Shiny apps with MAIDR:
 
 ## Getting Help
 
-- GitHub issues: [maidr/issues](https://github.com/xability/maidr/issues)
+- Report a bug or ask for a feature at [xability/r-maidr/issues](https://github.com/xability/r-maidr/issues)
 - Package documentation: `?maidr::maidr_output`
 - Posit Community: [forum.posit.co](https://forum.posit.co/)

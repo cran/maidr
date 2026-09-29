@@ -1,5 +1,6 @@
 #' Base R Processor Factory
 #'
+#' @description
 #' Factory for creating Base R-specific processors. This factory creates
 #' processors for Base R plot types based on recorded plot calls.
 #'
@@ -10,12 +11,12 @@ BaseRProcessorFactory <- R6::R6Class(
   "BaseRProcessorFactory",
   inherit = ProcessorFactory,
   public = list(
-    #' Initialize the Base R processor factory
+    #' @description Initialize the Base R processor factory
     initialize = function() {
       # No additional initialization needed
     },
 
-    #' Create a processor for a specific plot type
+    #' @description Create a processor for a specific plot type
     #' @param plot_type The type of plot (e.g., "bar", "line", "point")
     #' @param layer_info Information about the layer (contains plot call and metadata)
     #' @return Processor instance for the specified plot type
@@ -29,20 +30,96 @@ BaseRProcessorFactory <- R6::R6Class(
         "bar" = BaseRBarplotLayerProcessor$new(layer_info),
         "dodged_bar" = BaseRDodgedBarLayerProcessor$new(layer_info),
         "stacked_bar" = BaseRStackedBarLayerProcessor$new(layer_info),
+        # Same extraction as a plain stack: base R has no normalisation
+        # argument, so the values already are the drawn shares.
+        "stacked_normalized_bar" = BaseRStackedBarLayerProcessor$new(layer_info),
         "smooth" = BaseRSmoothLayerProcessor$new(layer_info),
         "line" = BaseRLineLayerProcessor$new(layer_info),
+        # One line per trace-factor level, over the cell means
+        # `interaction.plot()` computes and hands to `matplot`.
+        "interaction" = BaseRInteractionLayerProcessor$new(layer_info),
+        # One line per cycle position of a seasonal series, the shape
+        # `monthplot()` draws.
+        "subseries" = BaseRSubseriesLayerProcessor$new(layer_info),
+        "step" = BaseRStepLayerProcessor$new(layer_info),
+        "lollipop" = BaseRSpikeLayerProcessor$new(layer_info),
+        # The same spikes, drawn per lag rather than per observation. The
+        # separate name routes it to the subclass that replays the recorded
+        # call to get the correlations, which the drawing does not carry.
+        "correlogram" = BaseRCorrelogramLayerProcessor$new(layer_info),
         "point" = BaseRPointLayerProcessor$new(layer_info),
+        # A scatter whose coordinates the call computed rather than took.
+        # It emits a `point` layer; the separate name is what routes it here
+        # instead of to the processor that would read the raw sample.
+        "qq" = BaseRQqLayerProcessor$new(layer_info),
+        "qqline" = BaseRQqlineLayerProcessor$new(layer_info),
+        # A scatter split into one layer per group. The separate name routes
+        # it here rather than to the processor that would emit one layer and
+        # highlight only the first group's marks.
+        "strip" = BaseRStripchartLayerProcessor$new(layer_info),
+        # A scatter per ordered pair of columns, each in its own cell of a
+        # grid the reading derives -- the one processor that answers with a
+        # figure's shape rather than a layer's.
+        "pairs" = BaseRPairsLayerProcessor$new(layer_info),
+        # The same set of lines once more, this time around a circle: one
+        # series per observation, one spoke per variable.
+        "radar" = BaseRStarsLayerProcessor$new(layer_info),
+        # A term and its count. The chart draws the count as glyph size and
+        # writes it down nowhere, so the reading is the whole of what it
+        # encodes and none of what it draws.
+        "word_cloud" = BaseRWordcloudLayerProcessor$new(layer_info),
+        # The other call that answers with a grid: one scatter per series and
+        # lag, the series against a shifted copy of itself.
+        "lag" = BaseRLagLayerProcessor$new(layer_info),
+        # The third, and the only one whose grid is the caller's rather than
+        # its own: one partial-effect curve per term of a fitted model.
+        "termplot" = BaseRTermplotLayerProcessor$new(layer_info),
+        # The two periodogram entry points. Separate names because they draw
+        # different marks from different estimates of the same series.
+        "spectral_density" = BaseRSpectrumLayerProcessor$new(layer_info),
+        "cumulative_periodogram" = BaseRCpgramLayerProcessor$new(layer_info),
+        # The fourth call that answers with a grid, and the only one whose
+        # cells exist because the halves have different scales rather than
+        # because they were drawn side by side.
+        "biplot" = BaseRBiplotLayerProcessor$new(layer_info),
+        # A contour whose levels default to twice as many, and whose field
+        # is one polygon grob rather than one per curve. The separate name
+        # routes it to the subclass that knows both.
+        "filled_contour" = BaseRFilledContourLayerProcessor$new(layer_info),
+        # A mosaic whose table has to be replayed out of the call rather
+        # than read from it, and whose tiles are one grob rather than many.
+        "spine" = BaseRSpineplotLayerProcessor$new(layer_info),
+        "conditional_density" = BaseRCdplotLayerProcessor$new(layer_info),
+        "dot" = BaseRDotchartLayerProcessor$new(layer_info),
+        "mosaic" = BaseRMosaicLayerProcessor$new(layer_info),
+        # The same table read as residuals rather than proportions. A
+        # separate name because the numbers, the axes and the trace all
+        # differ; only the argument they come from is shared.
+        "residual" = BaseRAssocplotLayerProcessor$new(layer_info),
+        # The same two-way table a third time, read as the counts its
+        # quadrants draw rather than as proportions (`mosaic`) or residuals
+        # (`residual`). A separate name because the numbers and the
+        # extraction differ, and it cannot simply be called `"heat"`: that
+        # key is already `BaseRHeatmapLayerProcessor`'s below, even though
+        # `heat` is the trace this emits.
+        "fourfold" = BaseRFourfoldLayerProcessor$new(layer_info),
         "hist" = BaseRHistogramLayerProcessor$new(layer_info),
         "box" = BaseRBoxplotLayerProcessor$new(layer_info),
+        # A box plot handed its summaries rather than its observations. The
+        # separate name routes it to the subclass that reads them out of the
+        # call; the layer it emits is a `box` like any other.
+        "box_stats" = BaseRBxpLayerProcessor$new(layer_info),
+        "violin" = BaseRViolinLayerProcessor$new(layer_info),
+        "pie" = BaseRPieLayerProcessor$new(layer_info),
         "heat" = BaseRHeatmapLayerProcessor$new(layer_info),
-        "contour" = BaseRUnknownLayerProcessor$new(layer_info),
+        "contour" = BaseRContourLayerProcessor$new(layer_info),
         "candlestick" = BaseRCandlestickLayerProcessor$new(layer_info),
         # For unknown types, use the generic processor
         BaseRUnknownLayerProcessor$new(layer_info)
       )
     },
 
-    #' Get list of supported plot types
+    #' @description Get list of supported plot types
     #' @return Character vector of supported plot types
     get_supported_types = function() {
       c(
@@ -50,53 +127,81 @@ BaseRProcessorFactory <- R6::R6Class(
         "bar",
         "dodged_bar",
         "stacked_bar",
+        "stacked_normalized_bar",
         "smooth",
         "line",
+        "interaction",
+        "subseries",
+        "step",
+        "lollipop",
+        "correlogram",
         "point",
+        "qq",
+        "qqline",
+        "strip",
+        "lag",
+        "radar",
+        "termplot",
+        "spectral_density",
+        "cumulative_periodogram",
+        "biplot",
+        "filled_contour",
+        "spine",
+        "conditional_density",
+        "dot",
+        "mosaic",
+        "residual",
+        "fourfold",
         "hist",
         "box",
+        "box_stats",
+        "pie",
         "heat",
+        # Back on the list with `BaseRContourLayerProcessor` behind it (#218).
+        # It was absent for a while because listing a type the factory cannot
+        # dispatch is worse than not claiming it: the layer shipped typed
+        # "unknown", the unsupported-elements fallback that saves `dotchart`
+        # never ran because the type *was* claimed here, and the core's
+        # factory ends its dispatch with
+        # `throw new Error("Invalid trace type: " + layer.type)` -- so the
+        # figure bound and then failed to construct (#214).
         "contour",
         "candlestick",
+        "word_cloud",
+        # Both dispatched by `create_processor()` above and emitted by the
+        # adapter; the list had simply not been kept in step with the switch.
+        "violin",
+        "pairs",
         "unknown"
       )
     },
 
-    #' Get the system name
+    #' @description Get the system name
     #' @return System name string
     get_system_name = function() {
       "base_r"
     },
 
-    #' Check if a specific processor class is available
+    #' @description Check if a specific processor class is available
     #' @param processor_class_name Name of the processor class
     #' @return TRUE if available, FALSE otherwise
     is_processor_available = function(processor_class_name) {
-      exists(processor_class_name, mode = "function")
+      processor_class_exists(processor_class_name)
     },
 
-    #' Get available processor classes
+    #' @description Get available processor classes
+    #'
+    #' Enumerated from `create_processor()` rather than listed here, so the
+    #' answer cannot drift away from what the factory actually dispatches to
+    #' (#200).
+    #'
     #' @return Character vector of available processor class names
     get_available_processors = function() {
-      processor_classes <- c(
-        "BaseRBarplotLayerProcessor",
-        "BaseRDodgedBarLayerProcessor",
-        "BaseRStackedBarLayerProcessor",
-        "BaseRSmoothLayerProcessor",
-        "BaseRLineLayerProcessor",
-        "BaseRPointLayerProcessor",
-        "BaseRHistogramLayerProcessor",
-        "BaseRBoxplotLayerProcessor",
-        "BaseRCandlestickLayerProcessor",
-        "BaseRUnknownLayerProcessor"
-        # Additional processor classes can be registered here as needed
-      )
-
-      available <- sapply(processor_classes, self$is_processor_available)
-      names(available)[available]
+      classes <- dispatched_processor_classes(BaseRProcessorFactory, "BaseR")
+      Filter(self$is_processor_available, classes)
     },
 
-    #' Create a processor with error handling
+    #' @description Create a processor with error handling
     #' @param plot_type The type of plot
     #' @param layer_info The layer information
     #' @return Processor instance or NULL if creation fails

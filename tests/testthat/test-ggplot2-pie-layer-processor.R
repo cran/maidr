@@ -1,0 +1,1018 @@
+# Comprehensive tests for Ggplot2PieLayerProcessor
+#
+# A ggplot2 pie is a geom_col()/geom_bar() layer drawn under coord_polar("y"):
+# the stack's segments wrap into wedges. The payload is 1-D and flat -- one
+# {x, y} point per wedge, x the slice label and y its magnitude -- and carries
+# neither a percentage (the frontend derives it) nor an orientation (a pie has
+# none).
+
+skip_if_no_ggplot2 <- function() {
+  testthat::skip_if_not_installed("ggplot2")
+}
+
+# The stacked column a pie is made of: categories on fill, x collapsed to the
+# literal "". Kept coordinate-free so a test can bend it whichever way it needs.
+fruit_col <- function(...) {
+  df <- data.frame(
+    fruit = c("Apples", "Bananas", "Cherries"),
+    units = c(30, 50, 20)
+  )
+  ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::labs(...)
+}
+
+# The canonical pie.
+fruit_pie <- function(...) {
+  fruit_col(...) + ggplot2::coord_polar("y")
+}
+
+# Pull the flat wedge labels / magnitudes back out of a processor result.
+wedge_labels <- function(data) {
+  vapply(data, function(pt) as.character(pt$x), character(1))
+}
+
+wedge_values <- function(data) {
+  vapply(data, function(pt) as.numeric(pt$y), numeric(1))
+}
+
+# ==============================================================================
+# Tier 1: Initialization & Core Methods
+# ==============================================================================
+
+test_that("Ggplot2PieLayerProcessor initializes correctly", {
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  expect_processor_r6(processor, "Ggplot2PieLayerProcessor")
+  testthat::expect_equal(processor$get_layer_index(), 1)
+})
+
+test_that("Ggplot2PieLayerProcessor extract_data() emits one point per wedge", {
+  skip_if_no_ggplot2()
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(fruit_pie())
+
+  testthat::expect_type(data, "list")
+  testthat::expect_length(data, 3L)
+  testthat::expect_equal(wedge_labels(data), c("Apples", "Bananas", "Cherries"))
+  testthat::expect_equal(wedge_values(data), c(30, 50, 20))
+})
+
+test_that("Ggplot2PieLayerProcessor process() returns correct structure", {
+  skip_if_no_ggplot2()
+
+  p <- fruit_pie(title = "Fruit sales", fill = "Fruit", y = "Units")
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  layout <- list(
+    title = "Fruit sales",
+    axes = list(x = "", y = "Units")
+  )
+  result <- processor$process(p, layout)
+
+  expect_processor_output(result)
+  testthat::expect_equal(result$type, "pie")
+  testthat::expect_equal(result$title, "Fruit sales")
+  testthat::expect_equal(result$axes$x$label, "Fruit")
+  testthat::expect_equal(result$axes$y$label, "Units")
+  testthat::expect_length(result$data, 3L)
+})
+
+test_that("Ggplot2PieLayerProcessor declares the dial of a default ggplot2 pie", {
+  skip_if_no_ggplot2()
+
+  # coord_polar("y") runs clockwise from 12 o'clock, but position_stack()
+  # puts the first group on top, so the emitted wedges run back down the
+  # stack: counterclockwise from the top, which the frontend turns round.
+  p <- fruit_pie()
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  result <- processor$process(p, list(title = "", axes = list(x = "", y = "")))
+
+  testthat::expect_false("startAngle" %in% names(result))
+  testthat::expect_equal(result$direction, "counterclockwise")
+})
+
+test_that("Ggplot2PieLayerProcessor reads the coord's start and direction", {
+  skip_if_no_ggplot2()
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  dial <- function(p) {
+    processor$extract_dial(p, ggplot2::ggplot_build(p))
+  }
+
+  # start = pi/2 clockwise is 3 o'clock; the emitted order still runs back
+  # against the coord.
+  rotated <- dial(fruit_col() + ggplot2::coord_polar("y", start = pi / 2))
+  testthat::expect_equal(rotated$startAngle, 90)
+  testthat::expect_equal(rotated$direction, "counterclockwise")
+
+  # An anticlockwise coord applies its start the other way round, and the
+  # emitted order, running back against it, is clockwise: nothing to declare
+  # beyond where it starts.
+  reversed <- dial(fruit_col() + ggplot2::coord_polar("y", start = pi / 2, direction = -1))
+  testthat::expect_equal(reversed$startAngle, 270)
+  testthat::expect_false("direction" %in% names(reversed))
+})
+
+test_that("Ggplot2PieLayerProcessor follows a stack built the other way up", {
+  skip_if_no_ggplot2()
+
+  # position_stack(reverse = TRUE) builds the first group at the bottom, so
+  # the emitted wedges run up the stack: the coord's own direction.
+  df <- data.frame(fruit = c("Apples", "Bananas", "Cherries"), units = c(30, 50, 20))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col(position = ggplot2::position_stack(reverse = TRUE)) +
+    ggplot2::coord_polar("y")
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  dial <- processor$extract_dial(p, ggplot2::ggplot_build(p))
+
+  testthat::expect_false("startAngle" %in% names(dial))
+  testthat::expect_false("direction" %in% names(dial))
+})
+
+test_that("Ggplot2PieLayerProcessor reads coord_radial()'s arc and reverse", {
+  skip_if_no_ggplot2()
+  testthat::skip_if_not(
+    "coord_radial" %in% getNamespaceExports("ggplot2"),
+    "ggplot2 has no coord_radial()"
+  )
+  # `reverse` replaced coord_radial()'s numeric `direction` in ggplot2 4.0.
+  testthat::skip_if_not(
+    "reverse" %in% names(formals(ggplot2::coord_radial)),
+    "ggplot2's coord_radial() has no reverse argument"
+  )
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  dial <- function(coord) {
+    p <- fruit_col() + coord
+    processor$extract_dial(p, ggplot2::ggplot_build(p))
+  }
+
+  # coord_radial() stores neither `start` nor `direction`: its `arc` holds
+  # the start, and `reverse = "theta"` turns the arc round. Measured on
+  # ggplot2 4.0.3: the default draws its ring clockwise from 12, so the
+  # wedges emitted down the stack run counterclockwise, as under
+  # coord_polar().
+  plain <- dial(ggplot2::coord_radial(theta = "y"))
+  testthat::expect_false("startAngle" %in% names(plain))
+  testthat::expect_equal(plain$direction, "counterclockwise")
+
+  # start = pi/2 is 3 o'clock, clockwise from 12, whichever way the arc runs.
+  rotated <- dial(ggplot2::coord_radial(theta = "y", start = pi / 2))
+  testthat::expect_equal(rotated$startAngle, 90)
+  testthat::expect_equal(rotated$direction, "counterclockwise")
+
+  # A reversed theta runs the ring anticlockwise from that same edge, and
+  # the emitted order, running back against it, is clockwise: only the edge
+  # is left to declare. This is the case that used to come out as a
+  # counterclockwise ring from 12 o'clock.
+  reversed <- dial(ggplot2::coord_radial(theta = "y", start = pi / 2, reverse = "theta"))
+  testthat::expect_equal(reversed$startAngle, 90)
+  testthat::expect_false("direction" %in% names(reversed))
+
+  # "thetar" reverses theta too; "r" reverses only the radius.
+  both <- dial(ggplot2::coord_radial(theta = "y", start = pi / 2, reverse = "thetar"))
+  testthat::expect_equal(both, reversed)
+  radius <- dial(ggplot2::coord_radial(theta = "y", start = pi / 2, reverse = "r"))
+  testthat::expect_equal(radius, rotated)
+
+  # A reversed arc from the top is the frontend's own default walk.
+  turned <- dial(ggplot2::coord_radial(theta = "y", reverse = "theta"))
+  testthat::expect_equal(turned, list())
+
+  # A negative start wraps round.
+  back <- dial(ggplot2::coord_radial(theta = "y", start = -pi / 2))
+  testthat::expect_equal(back$startAngle, 270)
+})
+
+test_that("pie_coord_ring() reads each coord's own fields", {
+  skip_if_no_ggplot2()
+
+  ring <- maidr:::pie_coord_ring
+
+  # coord_polar(): `start` applied in `direction`.
+  testthat::expect_equal(
+    ring(ggplot2::coord_polar("y", start = pi / 2, direction = -1)),
+    list(start = -pi / 2, direction = -1)
+  )
+
+  # The shapes coord_radial() has stored: ggplot2 >= 4.0 keeps an `arc`
+  # already turned round by a character `reverse`, 3.5.x an `arc` with a
+  # numeric `direction` still to apply. Stand-ins, so the reading is pinned
+  # whichever ggplot2 is installed.
+  radial <- function(...) structure(list(...), class = c("CoordRadial", "Coord"))
+  testthat::expect_equal(
+    ring(radial(arc = c(pi / 2, pi / 2 + 2 * pi), reverse = "none")),
+    list(start = pi / 2, direction = 1)
+  )
+  testthat::expect_equal(
+    ring(radial(arc = c(pi / 2 + 2 * pi, pi / 2), reverse = "theta")),
+    list(start = pi / 2 + 2 * pi, direction = -1)
+  )
+  testthat::expect_equal(
+    ring(radial(arc = c(pi / 2, pi / 2 + 2 * pi), direction = -1)),
+    list(start = -pi / 2, direction = -1)
+  )
+
+  # Anything unusable falls back to the coord's default.
+  testthat::expect_equal(ring(radial()), list(start = 0, direction = 1))
+  testthat::expect_equal(
+    ring(radial(arc = c(NA_real_, 1), reverse = "theta")),
+    list(start = 0, direction = -1)
+  )
+  testthat::expect_equal(
+    ring(structure(list(start = "top", direction = 0), class = c("CoordPolar", "Coord"))),
+    list(start = 0, direction = 1)
+  )
+})
+
+test_that("Ggplot2PieLayerProcessor builds the plot when built is NULL", {
+  skip_if_no_ggplot2()
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  from_null <- processor$extract_data(fruit_pie(), built = NULL)
+  from_built <- processor$extract_data(
+    fruit_pie(),
+    ggplot2::ggplot_build(fruit_pie())
+  )
+
+  testthat::expect_equal(from_null, from_built)
+})
+
+# ==============================================================================
+# Tier 2: Edge Cases
+# ==============================================================================
+
+test_that("Ggplot2PieLayerProcessor handles a single wedge", {
+  skip_if_no_ggplot2()
+
+  df <- data.frame(fruit = "Apples", units = 42)
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(p)
+
+  testthat::expect_length(data, 1L)
+  testthat::expect_equal(data[[1]]$x, "Apples")
+  testthat::expect_equal(data[[1]]$y, 42)
+})
+
+test_that("Ggplot2PieLayerProcessor handles a zero-row layer", {
+  skip_if_no_ggplot2()
+
+  df <- data.frame(fruit = character(0), units = numeric(0))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  # Some ggplot2 versions cannot build this plot at all -- 3.4.4 raises
+  # "replacement has length zero" from `expand_limits_discrete_trans()`,
+  # with or without the polar coord. That is upstream and reproduces on a
+  # bare `ggplot_build()` with no maidr in the picture, so there is nothing
+  # here for this processor to get right or wrong. Skipped by asking the
+  # question rather than by naming a version, because the version this was
+  # fixed in has not been bisected.
+  built <- tryCatch(
+    suppressWarnings(ggplot2::ggplot_build(p)),
+    error = function(condition) condition
+  )
+  if (inherits(built, "error")) {
+    testthat::skip(paste0(
+      "ggplot2 ", as.character(utils::packageVersion("ggplot2")),
+      " cannot build a zero-row discrete-x plot: ", conditionMessage(built)
+    ))
+  }
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- suppressWarnings(processor$extract_data(p))
+
+  testthat::expect_type(data, "list")
+  testthat::expect_length(data, 0L)
+})
+
+test_that("Ggplot2PieLayerProcessor falls back to wedge position without a group", {
+  skip_if_no_ggplot2()
+
+  # No fill and no discrete x, so every built row shares one group id and no
+  # aesthetic names the wedges.
+  df <- data.frame(units = c(30, 50, 20))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(p)
+
+  testthat::expect_equal(wedge_labels(data), c("1", "2", "3"))
+})
+
+test_that("Ggplot2PieLayerProcessor generate_selectors() returns none without a gtable", {
+  skip_if_no_ggplot2()
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  selectors <- processor$generate_selectors(fruit_pie(), gt = NULL)
+
+  testthat::expect_type(selectors, "list")
+  testthat::expect_length(selectors, 0L)
+})
+
+# ==============================================================================
+# Tier 3: Coordinate Detection
+# ==============================================================================
+
+test_that("a bar layer under coord_polar(theta = 'y') is detected as a pie", {
+  skip_if_no_ggplot2()
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- fruit_pie()
+
+  testthat::expect_true(adapter$is_pie_coord(p))
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "pie")
+})
+
+test_that("coord_radial(theta = 'y') is detected as a pie too", {
+  skip_if_no_ggplot2()
+  testthat::skip_if_not(
+    "coord_radial" %in% getNamespaceExports("ggplot2"),
+    "ggplot2 has no coord_radial()"
+  )
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  # coord_radial() produces a CoordRadial, which does NOT inherit CoordPolar.
+  p <- fruit_col() + ggplot2::coord_radial(theta = "y")
+
+  testthat::expect_true(adapter$is_pie_coord(p))
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "pie")
+})
+
+test_that("coord_polar(theta = 'x') stays a bar chart", {
+  skip_if_no_ggplot2()
+
+  # theta = "x" keeps the height on the radius: a coxcomb / rose, which is a
+  # bar chart bent around, not a pie.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- fruit_col() + ggplot2::coord_polar("x")
+
+  testthat::expect_false(adapter$is_pie_coord(p))
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "stacked_bar")
+})
+
+test_that("cartesian bar layers keep their existing types", {
+  skip_if_no_ggplot2()
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  df <- data.frame(
+    x = rep(c("A", "B"), each = 2),
+    y = c(10, 15, 20, 25),
+    fill = rep(c("G1", "G2"), 2)
+  )
+  base <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y, fill = fill))
+
+  stacked <- base + ggplot2::geom_col(position = "stack")
+  dodged <- base + ggplot2::geom_col(position = "dodge")
+  simple <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) + ggplot2::geom_col()
+
+  testthat::expect_equal(
+    adapter$detect_layer_type(stacked$layers[[1]], stacked), "stacked_bar"
+  )
+  testthat::expect_equal(
+    adapter$detect_layer_type(dodged$layers[[1]], dodged), "dodged_bar"
+  )
+  testthat::expect_equal(
+    adapter$detect_layer_type(simple$layers[[1]], simple), "bar"
+  )
+})
+
+test_that("a polar histogram is still a histogram", {
+  skip_if_no_ggplot2()
+
+  # StatBin is checked before the coordinate system, so geom_histogram() in
+  # polar coordinates keeps its previous behaviour.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- ggplot2::ggplot(data.frame(x = c(1, 2, 3, 4, 5, 6)), ggplot2::aes(x = x)) +
+    ggplot2::geom_histogram(bins = 3) +
+    ggplot2::coord_polar("y")
+
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "hist")
+})
+
+test_that("is_pie_coord() is NULL-safe", {
+  skip_if_no_ggplot2()
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+
+  testthat::expect_false(adapter$is_pie_coord(NULL))
+  testthat::expect_equal(adapter$detect_layer_type(NULL, NULL), "unknown")
+})
+
+# ==============================================================================
+# Tier 3b: Multi-ring "bullseye" polar bars are not pies
+# ==============================================================================
+
+# geom_col(aes(x = category)) under coord_polar("y") draws one CONCENTRIC RING
+# per x category. A pie payload is flat, so the ring dimension would be lost and
+# wedges from different rings sharing a fill category would carry the same
+# label. Those layers must keep the classification they had before pie support.
+bullseye_col <- function(rings = c("R1", "R2")) {
+  df <- data.frame(
+    ring = rep(rings, each = 3),
+    sub = rep(c("a", "b", "c"), length(rings)),
+    val = seq_len(3 * length(rings))
+  )
+  ggplot2::ggplot(df, ggplot2::aes(x = ring, y = val, fill = sub)) +
+    ggplot2::geom_col()
+}
+
+bullseye <- function(rings = c("R1", "R2")) {
+  bullseye_col(rings) + ggplot2::coord_polar("y")
+}
+
+test_that("a multi-ring bullseye is not a pie", {
+  skip_if_no_ggplot2()
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- bullseye()
+
+  testthat::expect_false(adapter$is_pie_coord(p, p$layers[[1]]))
+  # Falls back to the type it would have had without the polar coord, not to
+  # "unknown": the chart keeps rendering exactly as it did before pie support.
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "stacked_bar")
+})
+
+test_that("a bullseye without a fill aesthetic falls back to a plain bar", {
+  skip_if_no_ggplot2()
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  df <- data.frame(ring = c("R1", "R2", "R3"), val = c(1, 2, 3))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = ring, y = val)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  testthat::expect_false(adapter$is_pie_coord(p, p$layers[[1]]))
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "bar")
+})
+
+test_that("a single-ring bullseye IS a pie", {
+  skip_if_no_ggplot2()
+
+  # One ring is one pie, however x happens to be written.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- bullseye(rings = "R1")
+
+  testthat::expect_true(adapter$is_pie_coord(p, p$layers[[1]]))
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "pie")
+})
+
+test_that("every effectively constant x counts as a single ring", {
+  skip_if_no_ggplot2()
+
+  # The predicate reads the BUILT x, so a one-level factor, a column holding
+  # one repeated value, the literal "" and a constant number all agree.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  df <- data.frame(
+    fruit = c("Apples", "Bananas", "Cherries"),
+    units = c(30, 50, 20),
+    one_level = factor("only"),
+    same = "same",
+    stringsAsFactors = FALSE
+  )
+
+  for (x in list(
+    ggplot2::aes(x = "", y = units, fill = fruit),
+    ggplot2::aes(x = one_level, y = units, fill = fruit),
+    ggplot2::aes(x = same, y = units, fill = fruit),
+    ggplot2::aes(x = 1, y = units, fill = fruit)
+  )) {
+    p <- ggplot2::ggplot(df, x) + ggplot2::geom_col() + ggplot2::coord_polar("y")
+    testthat::expect_equal(adapter$detect_layer_type(p$layers[[1]], p), "pie")
+  }
+})
+
+test_that("a coxcomb keeps its bar behaviour whatever x holds", {
+  skip_if_no_ggplot2()
+
+  # theta = "x" is rejected on the coordinate system alone, so the ring guard
+  # never gets a say and coord_polar("x") behaves exactly as it did before.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  many <- bullseye_col() + ggplot2::coord_polar("x")
+  one <- fruit_col() + ggplot2::coord_polar("x")
+
+  testthat::expect_false(adapter$is_pie_coord(many, many$layers[[1]]))
+  testthat::expect_false(adapter$is_pie_coord(one, one$layers[[1]]))
+  testthat::expect_equal(
+    adapter$detect_layer_type(many$layers[[1]], many), "stacked_bar"
+  )
+  testthat::expect_equal(
+    adapter$detect_layer_type(one$layers[[1]], one), "stacked_bar"
+  )
+})
+
+test_that("a faceted pie stays a pie and a faceted bullseye does not", {
+  skip_if_no_ggplot2()
+
+  # Each panel is its own pie, so the ring count is asked of each panel.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  df <- data.frame(
+    ring = rep(c("R1", "R2"), each = 3),
+    sub = rep(c("a", "b", "c"), 2),
+    val = 1:6
+  )
+
+  pie <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = val, fill = sub)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y") +
+    ggplot2::facet_wrap(~ring)
+  rings <- bullseye() + ggplot2::facet_wrap(~sub)
+
+  testthat::expect_equal(adapter$detect_layer_type(pie$layers[[1]], pie), "pie")
+  testthat::expect_equal(
+    adapter$detect_layer_type(rings$layers[[1]], rings), "stacked_bar"
+  )
+})
+
+test_that("the ring guard reads the layer it is handed, not the first one", {
+  skip_if_no_ggplot2()
+
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- ggplot2::ggplot(
+    data.frame(fruit = c("A", "B", "C"), units = c(30, 50, 20)),
+    ggplot2::aes(x = "", y = units, fill = fruit)
+  ) +
+    ggplot2::geom_blank() +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  testthat::expect_equal(adapter$detect_layer_type(p$layers[[2]], p), "pie")
+})
+
+test_that("a layer that does not belong to the plot is not a pie", {
+  skip_if_no_ggplot2()
+
+  # Without an index into the built data there is nothing to count rings in,
+  # so the guard declines rather than guessing.
+  adapter <- maidr:::Ggplot2Adapter$new()
+  p <- fruit_pie()
+  stranger <- (fruit_col() + ggplot2::coord_polar("y"))$layers[[1]]
+
+  testthat::expect_null(adapter$find_layer_index(p, stranger))
+  testthat::expect_false(adapter$is_pie_coord(p, stranger))
+})
+
+test_that("the ggplot2 processor factory serves a pie processor", {
+  skip_if_no_ggplot2()
+
+  factory <- maidr:::Ggplot2ProcessorFactory$new()
+
+  testthat::expect_true("pie" %in% factory$get_supported_types())
+  testthat::expect_s3_class(
+    factory$create_processor("pie", list(index = 1)),
+    "Ggplot2PieLayerProcessor"
+  )
+})
+
+# ==============================================================================
+# Tier 4: Pie-Specific Logic
+# ==============================================================================
+
+test_that("Ggplot2PieLayerProcessor measures the wedge, not the stacked total", {
+  skip_if_no_ggplot2()
+
+  # PositionStack makes the built `y` cumulative, so the last wedge would
+  # report the whole pie if the stacked value were used instead of the
+  # segment's own ymax - ymin extent.
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(fruit_pie())
+
+  testthat::expect_equal(sum(wedge_values(data)), 100)
+  testthat::expect_true(all(wedge_values(data) < 100))
+})
+
+test_that("Ggplot2PieLayerProcessor counts wedges for a stat = 'count' pie", {
+  skip_if_no_ggplot2()
+
+  df <- data.frame(g = c("a", "a", "b", "c", "c", "c"))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", fill = g)) +
+    ggplot2::geom_bar() +
+    ggplot2::coord_polar("y")
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(p)
+
+  testthat::expect_equal(wedge_labels(data), c("a", "b", "c"))
+  testthat::expect_equal(wedge_values(data), c(2, 1, 3))
+})
+
+test_that("fill names the wedges wherever the two aesthetics are written", {
+  skip_if_no_ggplot2()
+
+  # resolve_series_group_mapping() probes the LAYER's mapping for every
+  # aesthetic it is handed before it looks at the plot's, so fill and x have
+  # to be asked for separately. Handed together, the third plot below would
+  # let the layer's x win over the plot's fill and every wedge would be named
+  # after its position instead of its fruit.
+  df <- data.frame(fruit = c("Apples", "Bananas", "Cherries"), units = c(30, 50, 20))
+  plots <- list(
+    ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+      ggplot2::geom_col(),
+    ggplot2::ggplot(df, ggplot2::aes(x = "")) +
+      ggplot2::geom_col(ggplot2::aes(y = units, fill = fruit)),
+    ggplot2::ggplot(df, ggplot2::aes(y = units, fill = fruit)) +
+      ggplot2::geom_col(ggplot2::aes(x = ""))
+  )
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  for (plot in plots) {
+    p <- plot + ggplot2::coord_polar("y")
+    built <- ggplot2::ggplot_build(p)
+
+    testthat::expect_equal(
+      processor$resolve_slice_mapping(p, processor$panel_built_data(built))$aes,
+      "fill"
+    )
+    testthat::expect_equal(
+      wedge_labels(processor$extract_data(p, built)),
+      c("Apples", "Bananas", "Cherries")
+    )
+    testthat::expect_equal(
+      processor$extract_pie_axes(p, list(), built)$x$label, "fruit"
+    )
+  }
+})
+
+test_that("Ggplot2PieLayerProcessor names wedges from an expression mapping", {
+  skip_if_no_ggplot2()
+
+  # aes(fill = factor(cyl)) has no column to read back, so the labels have to
+  # come off the scale rather than out of the original data frame.
+  df <- data.frame(cyl = c(4, 6, 8), mpg = c(30, 20, 15))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = mpg, fill = factor(cyl))) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(p)
+
+  testthat::expect_equal(wedge_labels(data), c("4", "6", "8"))
+})
+
+test_that("Ggplot2PieLayerProcessor respects reordered factor levels", {
+  skip_if_no_ggplot2()
+
+  df <- data.frame(
+    fruit = factor(
+      c("Apples", "Bananas", "Cherries"),
+      levels = c("Cherries", "Apples", "Bananas")
+    ),
+    units = c(30, 50, 20)
+  )
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  data <- processor$extract_data(p)
+
+  # Group ids follow the factor's own level order, and each label must stay
+  # with its own magnitude.
+  testthat::expect_equal(
+    wedge_values(data)[match(c("Apples", "Bananas", "Cherries"), wedge_labels(data))],
+    c(30, 50, 20)
+  )
+})
+
+test_that("Ggplot2PieLayerProcessor keeps labels aligned in a partial facet", {
+  skip_if_no_ggplot2()
+
+  # Panel 2 draws only the third category. Indexing the scale labels by
+  # POSITION among the ids present would name that wedge "Apples".
+  df <- data.frame(
+    fruit = c("Apples", "Bananas", "Cherries"),
+    units = c(10, 20, 30),
+    region = c("N", "N", "S")
+  )
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y") +
+    ggplot2::facet_wrap(~region)
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  built <- ggplot2::ggplot_build(p)
+
+  testthat::expect_equal(
+    wedge_labels(processor$extract_data(p, built, panel_id = 1)),
+    c("Apples", "Bananas")
+  )
+  testthat::expect_equal(
+    wedge_labels(processor$extract_data(p, built, panel_id = 2)),
+    "Cherries"
+  )
+})
+
+test_that("Ggplot2PieLayerProcessor axes name the slice aesthetic and its measure", {
+  skip_if_no_ggplot2()
+
+  p <- fruit_pie(fill = "Fruit", y = "Units")
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  axes <- processor$extract_pie_axes(
+    p,
+    list(axes = list(x = "", y = "Units")),
+    ggplot2::ggplot_build(p)
+  )
+
+  testthat::expect_named(axes, c("x", "y"))
+  testthat::expect_equal(axes$x$label, "Fruit")
+  testthat::expect_equal(axes$y$label, "Units")
+})
+
+test_that("Ggplot2PieLayerProcessor takes a stat-derived y label from the layout", {
+  skip_if_no_ggplot2()
+
+  df <- data.frame(g = c("a", "a", "b"))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", fill = g)) +
+    ggplot2::geom_bar() +
+    ggplot2::coord_polar("y")
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  axes <- processor$extract_pie_axes(
+    p,
+    list(axes = list(x = "", y = "count")),
+    ggplot2::ggplot_build(p)
+  )
+
+  testthat::expect_equal(axes$x$label, "g")
+  testthat::expect_equal(axes$y$label, "count")
+})
+
+test_that("Ggplot2PieLayerProcessor selects the polygon grob, not the rect grob", {
+  skip_if_no_ggplot2()
+
+  # In polar coordinates the wedges are polygons; the geom_rect.rect.<N> the
+  # cartesian bar layers look for is never drawn.
+  #
+  # Which polygon grob depends on the ggplot2 version, and the difference is
+  # why #151 existed. Some versions draw one `geom_rect.polygon.<N>` holding
+  # every wedge grouped by id; ggplot2 3.4.4 draws a `geom_rect.gTree.<N>`
+  # holding one `geom_polygon.polygon.<N>` per wedge, and nothing named
+  # `geom_rect.polygon` anywhere. Either is a container whose `<polygon>`
+  # descendants are the wedges, which is what the selector addresses -- so
+  # this asserts the shape both produce rather than the name one of them has.
+  p <- fruit_pie()
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  selectors <- processor$generate_selectors(p, gt)
+
+  testthat::expect_length(selectors, 1L)
+  testthat::expect_match(
+    selectors[[1]],
+    "^#geom_rect\\\\\\.(polygon|gTree)\\\\\\.[0-9]+\\\\\\.1 polygon$"
+  )
+})
+
+test_that("a pie whose layer drew nothing gets no selector", {
+  skip_if_no_ggplot2()
+
+  # The gTree branch must require a polygon rather than settle for the tree.
+  # A `geom_rect` layer that drew no wedges has nothing to point at, and
+  # naming its tree would emit a selector resolving to nothing -- which the
+  # caller cannot tell from a working one.
+  p <- ggplot2::ggplot(
+    data.frame(fruit = c("Apples", "Bananas"), n = c(3, 5)),
+    ggplot2::aes(fruit, n)
+  ) + ggplot2::geom_point()
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+
+  testthat::expect_equal(processor$generate_selectors(p, gt), list())
+})
+
+test_that("Ggplot2PieLayerProcessor scopes its selector to a facet panel", {
+  skip_if_no_ggplot2()
+
+  df <- data.frame(
+    fruit = rep(c("Apples", "Bananas"), 2),
+    units = c(30, 50, 10, 15),
+    region = rep(c("N", "S"), each = 2)
+  )
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = units, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y") +
+    ggplot2::facet_wrap(~region)
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+
+  processor <- maidr:::Ggplot2PieLayerProcessor$new(list(index = 1))
+  panels <- grep("^panel-", gt$layout$name, value = TRUE)
+  testthat::expect_length(panels, 2L)
+
+  selectors <- vapply(
+    panels,
+    function(name) {
+      found <- processor$generate_selectors(
+        p, gt,
+        panel_ctx = list(panel_name = name, layer_index = 1)
+      )
+      testthat::expect_length(found, 1L)
+      found[[1]]
+    },
+    character(1)
+  )
+
+  # Each panel owns its own polygon grob.
+  testthat::expect_length(unique(selectors), 2L)
+})
+
+# ==============================================================================
+# Tier 5: End-to-end payload
+# ==============================================================================
+
+test_that("a rendered ggplot2 pie carries the flat wire format", {
+  skip_if_no_ggplot2()
+  testthat::skip_if_not_installed("jsonlite")
+  testthat::skip_if_not_installed("xml2")
+
+  p <- fruit_pie(title = "Fruit sales", fill = "Fruit", y = "Units")
+
+  file <- tempfile(fileext = ".html")
+  on.exit(unlink(file), add = TRUE)
+  suppressWarnings(save_html(p, file))
+
+  html <- paste(readLines(file, warn = FALSE), collapse = "\n")
+  raw <- regmatches(html, gregexpr('maidr-data="[^"]*"', html))[[1]]
+  testthat::expect_gt(length(raw), 0)
+
+  json <- sub('"$', "", sub('^maidr-data="', "", raw[1]))
+  json <- gsub("&quot;", '"', json, fixed = TRUE)
+  json <- gsub("&lt;", "<", json, fixed = TRUE)
+  json <- gsub("&gt;", ">", json, fixed = TRUE)
+  json <- gsub("&amp;", "&", json, fixed = TRUE)
+  payload <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+  layer <- payload$subplots[[1]][[1]]$layers[[1]]
+
+  testthat::expect_equal(layer$type, "pie")
+  testthat::expect_equal(layer$title, "Fruit sales")
+  testthat::expect_equal(layer$axes$x$label, "Fruit")
+  testthat::expect_equal(layer$axes$y$label, "Units")
+  testthat::expect_false("orientation" %in% names(layer))
+
+  # Flat PiePoint[]: each entry is one {x, y} object, never a nested series.
+  testthat::expect_length(layer$data, 3L)
+  for (point in layer$data) {
+    testthat::expect_named(point, c("x", "y"))
+    testthat::expect_true(is.numeric(point$y))
+    testthat::expect_false("percentage" %in% names(point))
+  }
+  testthat::expect_equal(wedge_labels(layer$data), c("Apples", "Bananas", "Cherries"))
+  testthat::expect_equal(wedge_values(layer$data), c(30, 50, 20))
+
+  # The single selector must resolve to exactly one element per slice.
+  testthat::expect_length(layer$selectors, 1L)
+  id <- gsub("\\\\", "", sub(" polygon$", "", sub("^#", "", layer$selectors[[1]])))
+  doc <- xml2::read_html(file)
+  nodes <- xml2::xml_find_all(
+    doc,
+    sprintf("//*[@id='%s']//*[local-name()='polygon']", id)
+  )
+  testthat::expect_length(nodes, 3L)
+})
+
+# A negative datum is stacked below the baseline, so the segment's extent is
+# its magnitude and the sign lives only in which side of zero it sits on.
+# Reporting the extent announced a slice entered as -40 as `40`, and computed
+# its share against a total that had swallowed it. The renderer treats a
+# negative slice as a gap; laundering the sign here left that nothing to catch.
+
+test_that("a negative slice keeps its sign", {
+  df <- data.frame(f = c("A", "B", "C"), v = c(60, -40, 30))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = v, fill = f)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  data <- Ggplot2PieLayerProcessor$new(list(index = 1))$extract_data(p)
+
+  expect_equal(vapply(data, function(pt) pt$y, numeric(1)), c(60, -40, 30))
+})
+
+test_that("an all-positive pie is unchanged", {
+  df <- data.frame(f = c("A", "B", "C"), v = c(60, 40, 30))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = v, fill = f)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  data <- Ggplot2PieLayerProcessor$new(list(index = 1))$extract_data(p)
+
+  expect_equal(vapply(data, function(pt) pt$y, numeric(1)), c(60, 40, 30))
+})
+
+test_that("a zero slice is not given a sign", {
+  # ymin == ymax == 0 for a zero datum, so a test on `ymin < 0` alone would
+  # be fine here but `ymax <= 0` alone would wrongly negate it.
+  df <- data.frame(f = c("A", "B", "C"), v = c(60, 0, 30))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = v, fill = f)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+
+  data <- Ggplot2PieLayerProcessor$new(list(index = 1))$extract_data(p)
+
+  expect_equal(vapply(data, function(pt) pt$y, numeric(1)), c(60, 0, 30))
+})
+
+test_that("the negative reaches the emitted payload, not just extract_data", {
+  df <- data.frame(f = c("A", "B", "C"), v = c(60, -40, 30))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = v, fill = f)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+  file <- tempfile(fileext = ".html")
+  save_html(p, file = file)
+
+  html <- paste(readLines(file, warn = FALSE), collapse = "")
+
+  expect_match(html, "-40")
+})
+
+test_that("two polar layers in one panel address different wedges", {
+  skip_if_no_ggplot2()
+
+  # A ring drawn over a pie is two geom_col() layers under one coord_polar(),
+  # and a search that takes the first container hands both of them the first
+  # layer's wedges. Those selectors resolve, and the payload looks healthy,
+  # and the outline sits on the wrong marks -- which is worse than the empty
+  # list this issue was about.
+  df <- data.frame(fruit = c("Apples", "Bananas", "Cherries"), n = c(3, 5, 2))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = n, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::geom_col(alpha = 0.3) +
+    ggplot2::coord_polar("y")
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+
+  selectors <- lapply(seq_len(2), function(index) {
+    maidr:::Ggplot2PieLayerProcessor$new(
+      list(index = index)
+    )$generate_selectors(p, gt)
+  })
+
+  testthat::expect_length(selectors[[1]], 1L)
+  testthat::expect_length(selectors[[2]], 1L)
+  testthat::expect_false(identical(selectors[[1]], selectors[[2]]))
+})
+
+test_that("a label layer costs the rings nothing", {
+  skip_if_no_ggplot2()
+
+  # Two rings and a geom_text() label layer. Counting containers against
+  # layers -- two of one, three of the other -- made this look ambiguous and
+  # took the selectors away from BOTH rings, though the correspondence is
+  # perfectly well defined: the text layer occupies a slot and draws no
+  # container. Slots are what the panel actually offers, so they are what is
+  # counted.
+  df <- data.frame(fruit = c("Apples", "Bananas", "Cherries"), n = c(3, 5, 2))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = n, fill = fruit)) +
+    ggplot2::geom_col() +
+    ggplot2::geom_col(alpha = 0.3) +
+    ggplot2::geom_text(ggplot2::aes(label = fruit), position = "stack") +
+    ggplot2::coord_polar("y")
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+
+  selectors <- lapply(seq_len(3), function(index) {
+    maidr:::Ggplot2PieLayerProcessor$new(
+      list(index = index)
+    )$generate_selectors(p, gt)
+  })
+
+  testthat::expect_length(selectors[[1]], 1L)
+  testthat::expect_length(selectors[[2]], 1L)
+  testthat::expect_false(identical(selectors[[1]], selectors[[2]]))
+  # The label layer drew no wedges, and must not be handed a ring's.
+  testthat::expect_equal(selectors[[3]], list())
+})
+
+test_that("a layer that drew nothing is not handed another layer's wedges", {
+  skip_if_no_ggplot2()
+
+  # The label layer first, so the one container in the panel is NOT in its
+  # slot. A search that fell back whenever the slot held no container would
+  # hand it the pie's wedges -- resolving, healthy-looking, and wrong.
+  df <- data.frame(fruit = c("Apples", "Bananas", "Cherries"), n = c(3, 5, 2))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = "", y = n, fill = fruit)) +
+    ggplot2::geom_text(ggplot2::aes(label = fruit), position = "stack") +
+    ggplot2::geom_col() +
+    ggplot2::coord_polar("y")
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+
+  first <- maidr:::Ggplot2PieLayerProcessor$new(
+    list(index = 1)
+  )$generate_selectors(p, gt)
+  second <- maidr:::Ggplot2PieLayerProcessor$new(
+    list(index = 2)
+  )$generate_selectors(p, gt)
+
+  testthat::expect_equal(first, list())
+  testthat::expect_length(second, 1L)
+})
